@@ -9,7 +9,7 @@ database_name = "gameday-db"
 database_id = "8f36b1b1-3b21-47f5-aeb0-90033908bf51"
 
 [vars]
-CORS_ORIGIN = "https://gameday.pages.dev"
+CORS_ORIGIN = "https://gameday-b2x.pages.dev"
 
 # Secrets (sæt med: wrangler secret put JWT_SECRET)
 # JWT_SECRET
