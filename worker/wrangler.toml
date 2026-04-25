@@ -1,0 +1,17 @@
+name = "gameday-worker"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "gameday-db"
+database_id = "8f36b1b1-3b21-47f5-aeb0-90033908bf51"
+
+[vars]
+CORS_ORIGIN = "https://gameday.pages.dev"
+
+# Secrets (sæt med: wrangler secret put JWT_SECRET)
+# JWT_SECRET
+# HOLDSPORT_USER
+# HOLDSPORT_PASS

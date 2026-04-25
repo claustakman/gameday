@@ -1,0 +1,21 @@
+{
+  "name": "gameday-worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply gameday-db",
+    "db:migrate:local": "wrangler d1 migrations apply gameday-db --local",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250422.0",
+    "typescript": "^5.5.0",
+    "wrangler": "^3.99.0"
+  },
+  "dependencies": {
+    "hono": "^4.6.0",
+    "jose": "^5.9.0"
+  }
+}
