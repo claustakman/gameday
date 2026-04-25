@@ -193,7 +193,6 @@ gameRoutes.get('/:id/roster', async (c) => {
 });
 
 gameRoutes.post('/:id/roster', async (c) => {
-  const user = c.get('user');
   const gameId = c.req.param('id');
   const { player_id, coach_id, is_keeper } = await c.req.json<{
     player_id?: string; coach_id?: string; is_keeper?: boolean;

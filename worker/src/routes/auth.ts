@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { Env, JWTPayload } from '../types';
 import { signJWT } from '../db/jwt';
-import { now } from '../db/utils';
 
 export const authRoutes = new Hono<{ Bindings: Env; Variables: { user: JWTPayload } }>();
 
