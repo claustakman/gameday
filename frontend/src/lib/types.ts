@@ -1,6 +1,7 @@
 export interface Team {
   id: string;
   name: string;
+  description: string | null;
   color: string;
   season: string;
   hs_team_id: string | null;

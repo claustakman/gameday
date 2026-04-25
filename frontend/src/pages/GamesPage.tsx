@@ -85,7 +85,7 @@ export default function GamesPage() {
             onChange={e => setStatus(e.target.value)}
             className="shrink-0 bg-bg2 rounded-lg px-3 py-1.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green"
           >
-            <option value="">Alle statusser</option>
+            <option value="">Status</option>
             <option value="planned">Planlagt</option>
             <option value="done">Spillet</option>
             <option value="archived">Arkiveret</option>

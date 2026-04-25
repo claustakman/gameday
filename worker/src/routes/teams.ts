@@ -14,15 +14,15 @@ teamRoutes.get('/', async (c) => {
 
 teamRoutes.post('/', async (c) => {
   const user = c.get('user');
-  const { name, color, season, hs_team_id } = await c.req.json<{
-    name: string; color: string; season: string; hs_team_id?: string;
+  const { name, description, color, season, hs_team_id } = await c.req.json<{
+    name: string; description?: string; color: string; season: string; hs_team_id?: string;
   }>();
   if (!name || !color || !season) return c.json({ error: 'Missing fields' }, 400);
 
   const id = uuid();
   await c.env.DB.prepare(
-    'INSERT INTO teams (id, org_id, name, color, season, hs_team_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).bind(id, user.org, name, color, season, hs_team_id ?? null, now()).run();
+    'INSERT INTO teams (id, org_id, name, description, color, season, hs_team_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).bind(id, user.org, name, description ?? null, color, season, hs_team_id ?? null, now()).run();
 
   return c.json({ id }, 201);
 });
@@ -30,10 +30,10 @@ teamRoutes.post('/', async (c) => {
 teamRoutes.patch('/:id', async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
-  const body = await c.req.json<Partial<{ name: string; color: string; season: string; hs_team_id: string }>>();
+  const body = await c.req.json<Partial<{ name: string; description: string; color: string; season: string; hs_team_id: string }>>();
 
   const fields = Object.entries(body)
-    .filter(([k]) => ['name', 'color', 'season', 'hs_team_id'].includes(k))
+    .filter(([k]) => ['name', 'description', 'color', 'season', 'hs_team_id'].includes(k))
     .map(([k, v]) => ({ k, v }));
 
   if (fields.length === 0) return c.json({ error: 'Nothing to update' }, 400);
