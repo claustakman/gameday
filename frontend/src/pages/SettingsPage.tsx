@@ -19,6 +19,8 @@ export default function SettingsPage() {
     const y = new Date().getFullYear();
     return `${y}/${String(y + 1).slice(2)}`;
   });
+  const [webcalUrl, setWebcalUrl]   = useState('');
+  const [webcalSaved, setWebcalSaved] = useState(false);
   const [saving, setSaving]   = useState<string | null>(null);
   const [adding, setAdding]   = useState(false);
 
@@ -30,6 +32,25 @@ export default function SettingsPage() {
   useEffect(() => {
     api.get<Team[]>('/teams').then(setTeams).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    setWebcalUrl('');
+    setWebcalSaved(false);
+    api.get<{ webcal_url: string | null }>(`/seasons/${season}/config`)
+      .then(r => setWebcalUrl(r.webcal_url ?? ''))
+      .catch(() => {});
+  }, [season]);
+
+  async function saveWebcal() {
+    setSaving('webcal');
+    try {
+      await api.put(`/seasons/${season}/config`, { webcal_url: webcalUrl.trim() || null });
+      setWebcalSaved(true);
+      setTimeout(() => setWebcalSaved(false), 2000);
+    } finally {
+      setSaving(null);
+    }
+  }
 
   const seasonTeams = teams.filter(t => t.season === season);
   const otherSeasons = [...new Set(teams.map(t => t.season).filter(s => s !== season))].sort().reverse();
@@ -176,6 +197,28 @@ export default function SettingsPage() {
               Tilføj hold
             </button>
           )}
+        </div>
+      </section>
+
+      {/* Webcal */}
+      <section className="mb-8">
+        <h3 className="text-base font-semibold text-text1 mb-3">Kalender — {season}</h3>
+        <p className="text-xs text-text2 mb-2">Webcal-link med kampe for alle hold i sæsonen</p>
+        <div className="flex gap-2">
+          <input
+            type="url"
+            placeholder="webcal://…"
+            value={webcalUrl}
+            onChange={e => { setWebcalUrl(e.target.value); setWebcalSaved(false); }}
+            className="flex-1 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green min-w-0"
+          />
+          <button
+            onClick={saveWebcal}
+            disabled={saving === 'webcal'}
+            className="shrink-0 bg-green text-white rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50"
+          >
+            {webcalSaved ? '✓' : saving === 'webcal' ? '…' : 'Gem'}
+          </button>
         </div>
       </section>
 
