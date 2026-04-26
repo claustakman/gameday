@@ -90,7 +90,7 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
     <>
       <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
 
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-bg rounded-t-2xl shadow-xl max-h-[92dvh] flex flex-col">
+      <div className="fixed bottom-14 left-0 right-0 z-50 bg-bg rounded-t-2xl shadow-xl max-h-[calc(92dvh-3.5rem)] flex flex-col">
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 bg-border rounded-full" />
@@ -239,7 +239,7 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
         </div>
 
         {/* Fast knap i bunden — over tab-bar */}
-        <div className="shrink-0 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-border bg-bg">
+        <div className="shrink-0 px-4 pt-3 pb-4 border-t border-border bg-bg">
           <button
             onClick={submit}
             disabled={saving || !teamId}
