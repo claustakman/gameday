@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { Game, Team } from '../lib/types';
+import NewGameSheet from '../components/NewGameSheet';
 
 export default function GamesPage() {
   const navigate = useNavigate();
   const [games, setGames]   = useState<Game[]>([]);
   const [teams, setTeams]   = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showNew, setShowNew] = useState(false);
 
   const [teamId,  setTeamId]  = useState('');
   const [season,  setSeason]  = useState('');
@@ -40,7 +42,16 @@ export default function GamesPage() {
     <div className="flex flex-col min-h-full">
       {/* Header */}
       <div className="bg-bg px-4 pt-6 pb-3 border-b border-border">
-        <h2 className="text-xl font-bold text-text1 mb-3">Kampe</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xl font-bold text-text1">Kampe</h2>
+          <button
+            onClick={() => setShowNew(true)}
+            className="flex items-center gap-1 bg-green text-white text-sm font-semibold px-3 py-1.5 rounded-lg"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Ny kamp
+          </button>
+        </div>
 
         {/* Søgefelt */}
         <div className="relative mb-3">
@@ -112,6 +123,17 @@ export default function GamesPage() {
           ))
         )}
       </div>
+
+      {showNew && (
+        <NewGameSheet
+          teams={teams}
+          onClose={() => setShowNew(false)}
+          onCreated={(id) => {
+            setShowNew(false);
+            navigate(`/games/${id}`);
+          }}
+        />
+      )}
     </div>
   );
 }
