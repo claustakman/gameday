@@ -8,15 +8,17 @@ interface Props {
   onClose: () => void;
 }
 
+const EMPTY_FOCUS = { focus: '', goal: '' };
+
 export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
   const currentSeason = (() => {
     const y = new Date().getFullYear();
     return `${y}/${String(y + 1).slice(2)}`;
   })();
 
-  const seasons = [...new Set(teams.map(t => t.season))].sort().reverse();
-  const [season, setSeason]       = useState(seasons[0] ?? currentSeason);
-  const seasonTeams               = teams.filter(t => t.season === season);
+  const seasons     = [...new Set(teams.map(t => t.season))].sort().reverse();
+  const [season, setSeason] = useState(seasons[0] ?? currentSeason);
+  const seasonTeams = teams.filter(t => t.season === season);
 
   const [teamId,     setTeamId]     = useState('');
   const [date,       setDate]       = useState('');
@@ -25,13 +27,25 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
   const [opponent,   setOpponent]   = useState('');
   const [location,   setLocation]   = useState('');
   const [isHome,     setIsHome]     = useState(true);
+  const [focuses,    setFocuses]    = useState([{ ...EMPTY_FOCUS }]);
   const [saving,     setSaving]     = useState(false);
   const [error,      setError]      = useState('');
 
-  // Sæt første hold som default når sæson ændres
   useEffect(() => {
     setTeamId(seasonTeams[0]?.id ?? '');
   }, [season]);
+
+  function setFocusField(i: number, field: 'focus' | 'goal', value: string) {
+    setFocuses(fs => fs.map((f, idx) => idx === i ? { ...f, [field]: value } : f));
+  }
+
+  function addFocus() {
+    if (focuses.length < 3) setFocuses(fs => [...fs, { ...EMPTY_FOCUS }]);
+  }
+
+  function removeFocus(i: number) {
+    setFocuses(fs => fs.filter((_, idx) => idx !== i));
+  }
 
   async function submit() {
     if (!teamId || !date || !opponent.trim()) {
@@ -50,6 +64,20 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
         location: location.trim() || null,
         is_home: isHome,
       });
+
+      // Gem fokuspunkter hvis udfyldt
+      const filled = focuses.filter(f => f.focus.trim());
+      if (filled.length > 0) {
+        await api.post(`/games/${res.id}/focus`, {
+          focus_1: filled[0]?.focus.trim() ?? null,
+          goal_1:  filled[0]?.goal.trim()  ?? null,
+          focus_2: filled[1]?.focus.trim() ?? null,
+          goal_2:  filled[1]?.goal.trim()  ?? null,
+          focus_3: filled[2]?.focus.trim() ?? null,
+          goal_3:  filled[2]?.goal.trim()  ?? null,
+        });
+      }
+
       onCreated(res.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fejl');
@@ -60,20 +88,16 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/30 z-40"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
 
-      {/* Sheet */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-bg rounded-t-2xl shadow-xl max-h-[92dvh] overflow-y-auto">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-bg rounded-t-2xl shadow-xl max-h-[92dvh] flex flex-col">
         {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1">
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 bg-border rounded-full" />
         </div>
 
-        <div className="px-4 pb-8 pt-2">
+        {/* Scrollbart indhold */}
+        <div className="overflow-y-auto flex-1 px-4 pt-2">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg font-bold text-text1">Ny kamp</h2>
             <button onClick={onClose} className="text-text3 p-1">
@@ -84,7 +108,6 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
           </div>
 
           <div className="flex flex-col gap-4">
-            {/* Sæson + hold */}
             {seasons.length > 1 && (
               <Field label="Sæson">
                 <select value={season} onChange={e => setSeason(e.target.value)} className={selectCls}>
@@ -117,7 +140,6 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
               )}
             </Field>
 
-            {/* Modstander */}
             <Field label="Modstander">
               <input
                 type="text"
@@ -128,7 +150,6 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
               />
             </Field>
 
-            {/* Hjemme / ude */}
             <Field label="Hvor">
               <div className="flex rounded-lg overflow-hidden border border-border">
                 <button
@@ -146,37 +167,19 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
               </div>
             </Field>
 
-            {/* Dato */}
             <Field label="Dato">
-              <input
-                type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                className={inputCls}
-              />
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
             </Field>
 
-            {/* Tidspunkter */}
             <div className="flex gap-3">
               <Field label="Kampstart" className="flex-1">
-                <input
-                  type="time"
-                  value={time}
-                  onChange={e => setTime(e.target.value)}
-                  className={inputCls}
-                />
+                <input type="time" value={time} onChange={e => setTime(e.target.value)} className={inputCls} />
               </Field>
               <Field label="Mødetid" className="flex-1">
-                <input
-                  type="time"
-                  value={meetupTime}
-                  onChange={e => setMeetupTime(e.target.value)}
-                  className={inputCls}
-                />
+                <input type="time" value={meetupTime} onChange={e => setMeetupTime(e.target.value)} className={inputCls} />
               </Field>
             </div>
 
-            {/* Lokation */}
             <Field label="Lokation (valgfri)">
               <input
                 type="text"
@@ -187,16 +190,63 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
               />
             </Field>
 
-            {error && <p className="text-red text-sm">{error}</p>}
+            {/* Fokuspunkter */}
+            <div>
+              <p className="text-xs font-medium text-text2 mb-2">Fokuspunkter (valgfri)</p>
+              <div className="flex flex-col gap-3">
+                {focuses.map((f, i) => (
+                  <div key={i} className="bg-bg2 rounded-xl p-3 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-text2">#{i + 1}</span>
+                      {focuses.length > 1 && (
+                        <button onClick={() => removeFocus(i)} className="text-text3">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Fokuspunkt (fx Presspil)"
+                      value={f.focus}
+                      onChange={e => setFocusField(i, 'focus', e.target.value)}
+                      className={inputCls}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Mål (fx Vi presser efter hvert skud)"
+                      value={f.goal}
+                      onChange={e => setFocusField(i, 'goal', e.target.value)}
+                      className={inputCls}
+                    />
+                  </div>
+                ))}
+                {focuses.length < 3 && (
+                  <button
+                    onClick={addFocus}
+                    className="flex items-center justify-center gap-1.5 border border-dashed border-border rounded-xl py-2.5 text-sm text-text3"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Tilføj fokuspunkt
+                  </button>
+                )}
+              </div>
+            </div>
 
-            <button
-              onClick={submit}
-              disabled={saving || !teamId}
-              className="w-full bg-green text-white rounded-xl py-3.5 font-semibold text-sm disabled:opacity-50 mt-1"
-            >
-              {saving ? 'Opretter…' : 'Opret kamp'}
-            </button>
+            {error && <p className="text-red text-sm">{error}</p>}
           </div>
+        </div>
+
+        {/* Fast knap i bunden — over tab-bar */}
+        <div className="shrink-0 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-border bg-bg">
+          <button
+            onClick={submit}
+            disabled={saving || !teamId}
+            className="w-full bg-green text-white rounded-xl py-3.5 font-semibold text-sm disabled:opacity-50"
+          >
+            {saving ? 'Opretter…' : 'Opret kamp'}
+          </button>
         </div>
       </div>
     </>
