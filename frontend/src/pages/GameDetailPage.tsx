@@ -72,17 +72,10 @@ export default function GameDetailPage() {
       {/* Header */}
       <div className="px-4 pt-5 pb-4 bg-bg border-b border-border">
         {/* Top bar */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center mb-4">
           <button onClick={() => navigate('/games')} className="flex items-center gap-1 text-text3 text-sm">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
             Kampe
-          </button>
-          <button
-            onClick={() => setShowEdit(true)}
-            className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-bg2 text-text2"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            Rediger
           </button>
         </div>
 
@@ -204,8 +197,15 @@ export default function GameDetailPage() {
           </section>
         )}
 
-        {/* Resultat-knap (floating) — altid synlig */}
-        <div>
+        {/* Knapper */}
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => setShowEdit(true)}
+            className="w-full rounded-xl py-3.5 font-semibold text-sm border border-border bg-bg2 text-text2 flex items-center justify-center gap-2"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Rediger
+          </button>
           <button
             onClick={() => setShowResult(true)}
             className="w-full rounded-xl py-3.5 font-semibold text-sm border-2 transition-colors"
