@@ -110,37 +110,35 @@ export default function SquadPage() {
           </button>
         </div>
 
-        {/* Årgangfilter — samme stil som Kampe */}
-        {years.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-            <ChipButton active={yearFilter === ''} onClick={() => setYearFilter('')}>Alle</ChipButton>
-            {years.map(y => (
-              <ChipButton
-                key={y}
-                active={yearFilter === String(y)}
-                onClick={() => setYearFilter(yearFilter === String(y) ? '' : String(y))}
-              >
-                {y}
-              </ChipButton>
-            ))}
-          </div>
-        )}
+        {/* Filtre: årgang + inaktive */}
+        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+          <ChipButton active={yearFilter === ''} onClick={() => setYearFilter('')}>Alle</ChipButton>
+          {years.map(y => (
+            <ChipButton
+              key={y}
+              active={yearFilter === String(y)}
+              onClick={() => setYearFilter(yearFilter === String(y) ? '' : String(y))}
+            >
+              {y}
+            </ChipButton>
+          ))}
+          {years.length > 0 && <span className="w-px bg-border shrink-0 mx-1" />}
+          <ChipButton active={showInactive} onClick={() => setShowInactive(s => !s)}>
+            Inaktive{showInactive && players.filter(p => p.active === 0).length > 0 ? ` (${players.filter(p => p.active === 0).length})` : ''}
+          </ChipButton>
+        </div>
 
-        {/* Sortering + aktiv-filter */}
+        {/* Sortering */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar">
           {sortOptions.map(opt => (
-            <ChipButton
+            <SortChip
               key={opt.key}
               active={sortKey === opt.key}
               onClick={() => setSortKey(opt.key)}
             >
               {opt.label}
-            </ChipButton>
+            </SortChip>
           ))}
-          <span className="w-px bg-border shrink-0 mx-1" />
-          <ChipButton active={showInactive} onClick={() => setShowInactive(s => !s)}>
-            Inaktive {showInactive && players.filter(p => p.active === 0).length > 0 && `(${players.filter(p => p.active === 0).length})`}
-          </ChipButton>
         </div>
       </div>
 
@@ -572,6 +570,21 @@ function ChipButton({ children, active, onClick }: {
       onClick={onClick}
       className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-colors whitespace-nowrap ${
         active ? 'bg-green text-white border-transparent' : 'bg-bg2 text-text2 border-transparent'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SortChip({ children, active, onClick }: {
+  children: React.ReactNode; active: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-colors whitespace-nowrap ${
+        active ? 'bg-text2 text-white border-transparent' : 'bg-bg2 text-text3 border-transparent'
       }`}
     >
       {children}
