@@ -334,6 +334,7 @@ function EditPlayerSheet({ player, teams, onClose, onSaved }: {
   const [shirtNumber,   setShirtNumber]   = useState(player.shirt_number != null ? String(player.shirt_number) : '');
   const [primaryTeamId, setPrimaryTeamId] = useState(player.primary_team_id ?? '');
   const [isKeeper,      setIsKeeper]      = useState(player.is_default_keeper === 1);
+  const [hsUserId,      setHsUserId]      = useState(player.hs_user_id ?? '');
   const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState('');
 
@@ -349,6 +350,7 @@ function EditPlayerSheet({ player, teams, onClose, onSaved }: {
         shirt_number:     shirtNumber ? parseInt(shirtNumber) : null,
         primary_team_id:  primaryTeamId || null,
         is_default_keeper: isKeeper ? 1 : 0,
+        hs_user_id:       hsUserId.trim() || null,
       });
 
       onSaved({
@@ -359,6 +361,7 @@ function EditPlayerSheet({ player, teams, onClose, onSaved }: {
         shirt_number:     shirtNumber ? parseInt(shirtNumber) : null,
         primary_team_id:  primaryTeamId || null,
         is_default_keeper: isKeeper ? 1 : 0,
+        hs_user_id:       hsUserId.trim() || null,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fejl');
@@ -382,6 +385,7 @@ function EditPlayerSheet({ player, teams, onClose, onSaved }: {
         shirtNumber={shirtNumber} setShirtNumber={setShirtNumber}
         primaryTeamId={primaryTeamId} setPrimaryTeamId={setPrimaryTeamId}
         isKeeper={isKeeper} setIsKeeper={setIsKeeper}
+        hsUserId={hsUserId} setHsUserId={setHsUserId}
         teams={teams}
         error={error}
       />
@@ -406,7 +410,9 @@ function PlayerForm({
   fullName, setFullName, nickname, setNickname,
   birthYear, setBirthYear, shirtNumber, setShirtNumber,
   primaryTeamId, setPrimaryTeamId,
-  isKeeper, setIsKeeper, teams, error,
+  isKeeper, setIsKeeper,
+  hsUserId, setHsUserId,
+  teams, error,
 }: {
   fullName: string; setFullName: (v: string) => void;
   nickname: string; setNickname: (v: string) => void;
@@ -414,6 +420,7 @@ function PlayerForm({
   shirtNumber: string; setShirtNumber: (v: string) => void;
   primaryTeamId: string; setPrimaryTeamId: (v: string) => void;
   isKeeper: boolean; setIsKeeper: (v: boolean) => void;
+  hsUserId?: string; setHsUserId?: (v: string) => void;
   teams: Team[];
   error: string;
 }) {
@@ -501,6 +508,22 @@ function PlayerForm({
           <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${isKeeper ? 'translate-x-5' : 'translate-x-1'}`} />
         </div>
       </button>
+
+      {/* Holdsport mapping — vises kun ved redigering */}
+      {setHsUserId !== undefined && (
+        <div>
+          <label className="block text-xs font-medium text-text2 mb-1.5">
+            Holdsport bruger-ID
+            <span className="ml-1.5 font-normal text-text3">(til integration)</span>
+          </label>
+          <input
+            value={hsUserId ?? ''}
+            onChange={e => setHsUserId(e.target.value)}
+            placeholder="fx 123456"
+            className={inputCls}
+          />
+        </div>
+      )}
 
       {error && <p className="text-red text-sm">{error}</p>}
     </div>
