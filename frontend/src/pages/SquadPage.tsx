@@ -126,7 +126,7 @@ export default function SquadPage() {
           </div>
         )}
 
-        {/* Sortering */}
+        {/* Sortering + aktiv-filter */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar">
           {sortOptions.map(opt => (
             <ChipButton
@@ -137,32 +137,29 @@ export default function SquadPage() {
               {opt.label}
             </ChipButton>
           ))}
+          <span className="w-px bg-border shrink-0 mx-1" />
+          <ChipButton active={showInactive} onClick={() => setShowInactive(s => !s)}>
+            Inaktive {showInactive && players.filter(p => p.active === 0).length > 0 && `(${players.filter(p => p.active === 0).length})`}
+          </ChipButton>
         </div>
       </div>
 
       {/* Liste */}
       <div className="flex-1 px-4 py-3 flex flex-col gap-1">
-        {active.length === 0 && (
+        {active.length === 0 && inactive.length === 0 && (
           <p className="text-center text-text3 text-sm pt-12">
             {yearFilter ? `Ingen spillere fra ${yearFilter}` : 'Ingen spillere endnu — tilføj den første'}
+          </p>
+        )}
+        {active.length === 0 && inactive.length > 0 && !showInactive && (
+          <p className="text-center text-text3 text-sm pt-12">
+            Ingen aktive spillere{yearFilter ? ` fra ${yearFilter}` : ''} — tryk <span className="font-semibold">Inaktive</span> for at se dem
           </p>
         )}
 
         {active.map(p => (
           <PlayerRow key={p.id} player={p} teamMap={teamMap} teams={teams} onUpdated={onUpdated} />
         ))}
-
-        {inactive.length > 0 && (
-          <button
-            onClick={() => setShowInactive(s => !s)}
-            className="flex items-center gap-2 text-xs text-text3 py-3 mt-2"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d={showInactive ? 'M18 15l-6-6-6 6' : 'M6 9l6 6 6-6'} />
-            </svg>
-            {showInactive ? 'Skjul' : 'Vis'} inaktive ({inactive.length})
-          </button>
-        )}
 
         {showInactive && inactive.map(p => (
           <PlayerRow key={p.id} player={p} teamMap={teamMap} teams={teams} onUpdated={onUpdated} />
