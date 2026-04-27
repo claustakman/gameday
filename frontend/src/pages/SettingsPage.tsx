@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
-import type { Team } from '../lib/types';
+import type { Team, Coach } from '../lib/types';
 
 const COLORS = [
   { label: 'Grøn',   value: '#1D9E75' },
@@ -38,6 +38,13 @@ export default function SettingsPage() {
   const [newColor,       setNewColor]       = useState(COLORS[0].value);
   const [newHsId,        setNewHsId]        = useState('');
 
+  // Trænere
+  const [coaches,       setCoaches]       = useState<Coach[]>([]);
+  const [newCoachName,  setNewCoachName]  = useState('');
+  const [newCoachHsId,  setNewCoachHsId]  = useState('');
+  const [addingCoach,   setAddingCoach]   = useState(false);
+  const [coachSaving,   setCoachSaving]   = useState(false);
+
   // Brugere (admin)
   const [orgUsers,     setOrgUsers]     = useState<OrgUser[]>([]);
   const [usersLoaded,  setUsersLoaded]  = useState(false);
@@ -50,6 +57,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     api.get<Team[]>('/teams').then(setTeams).catch(() => {});
+    api.get<Coach[]>('/coaches').then(setCoaches).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -100,6 +108,27 @@ export default function SettingsPage() {
     await api.delete(`/users/${id}`);
     setOrgUsers(u => u.filter(x => x.id !== id));
     if (inviteLink?.userId === id) setInviteLink(null);
+  }
+
+  async function addCoach() {
+    if (!newCoachName.trim()) return;
+    setCoachSaving(true);
+    try {
+      const { id } = await api.post<{ id: string }>('/coaches', { name: newCoachName.trim() });
+      if (newCoachHsId.trim()) {
+        await api.patch(`/coaches/${id}`, { hs_user_id: newCoachHsId.trim() }).catch(() => {});
+      }
+      setCoaches(cs => [...cs, { id, org_id: '', name: newCoachName.trim(), hs_user_id: newCoachHsId.trim() || null }]);
+      setNewCoachName(''); setNewCoachHsId(''); setAddingCoach(false);
+    } finally {
+      setCoachSaving(false);
+    }
+  }
+
+  async function deleteCoach(id: string) {
+    if (!confirm('Slet træneren?')) return;
+    await api.delete(`/coaches/${id}`);
+    setCoaches(cs => cs.filter(c => c.id !== id));
   }
 
   async function generateInvite(userId: string) {
@@ -234,6 +263,81 @@ export default function SettingsPage() {
           <button onClick={saveWebcal} disabled={saving === 'webcal'}
             className="shrink-0 bg-green text-white rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50">
             {webcalSaved ? '✓' : saving === 'webcal' ? '…' : 'Gem'}
+          </button>
+        </div>
+      </section>
+
+      {/* ── Trænere ────────────────────────────────────────────────── */}
+      <section className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold text-text1">Trænere</h3>
+          {!addingCoach && (
+            <button onClick={() => setAddingCoach(true)}
+              className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-green text-white">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Ny træner
+            </button>
+          )}
+        </div>
+
+        {addingCoach && (
+          <div className="bg-bg border border-border rounded-xl p-4 flex flex-col gap-3 mb-3">
+            <p className="text-sm font-semibold text-text1">Ny træner</p>
+            <input placeholder="Navn" value={newCoachName} onChange={e => setNewCoachName(e.target.value)} className={inputCls} />
+            <input placeholder="Holdsport bruger-ID (valgfri)" value={newCoachHsId} onChange={e => setNewCoachHsId(e.target.value)} className={inputCls} />
+            <div className="flex gap-2">
+              <button onClick={() => { setAddingCoach(false); setNewCoachName(''); setNewCoachHsId(''); }}
+                className="flex-1 border border-border rounded-lg py-2 text-sm text-text2">Annuller</button>
+              <button onClick={addCoach} disabled={coachSaving || !newCoachName.trim()}
+                className="flex-1 bg-green text-white rounded-lg py-2 text-sm font-semibold disabled:opacity-50">
+                {coachSaving ? 'Gemmer…' : 'Opret'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2">
+          {coaches.length === 0 && !addingCoach && (
+            <p className="text-text3 text-sm text-center py-4">Ingen trænere endnu</p>
+          )}
+          {coaches.map(c => (
+            <div key={c.id} className="bg-bg border border-border rounded-xl px-4 py-3 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-bg2 flex items-center justify-center shrink-0">
+                <span className="text-xs font-bold text-text2">{c.name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-text1 truncate">{c.name}</p>
+                {c.hs_user_id && <p className="text-xs text-text3">HS: {c.hs_user_id}</p>}
+              </div>
+              <button onClick={() => deleteCoach(c.id)} className="text-xs text-red px-2 py-1 rounded-lg bg-bg2 shrink-0">Slet</button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Holdsport ──────────────────────────────────────────────── */}
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-1">
+          <h3 className="text-base font-semibold text-text1">Holdsport</h3>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-bg2 text-text3 uppercase tracking-wide">Kommer snart</span>
+        </div>
+        <p className="text-xs text-text2 mb-4">Synkronisér kampe og spillere direkte fra Holdsport</p>
+        <div className="flex flex-col gap-2">
+          <button disabled
+            className="w-full flex items-center gap-3 bg-bg border border-border rounded-xl px-4 py-3.5 opacity-40 cursor-not-allowed">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text2 shrink-0"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-text1">Synkronisér kampe</p>
+              <p className="text-xs text-text3">Hent kampprogram fra Holdsport</p>
+            </div>
+          </button>
+          <button disabled
+            className="w-full flex items-center gap-3 bg-bg border border-border rounded-xl px-4 py-3.5 opacity-40 cursor-not-allowed">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text2 shrink-0"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-text1">Synkronisér spillere</p>
+              <p className="text-xs text-text3">Importér spillerliste fra Holdsport</p>
+            </div>
           </button>
         </div>
       </section>

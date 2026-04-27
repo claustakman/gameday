@@ -25,6 +25,14 @@ coachRoutes.post('/', async (c) => {
   return c.json({ id }, 201);
 });
 
+coachRoutes.delete('/:id', async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  await c.env.DB.prepare('DELETE FROM coaches WHERE id = ? AND org_id = ?')
+    .bind(id, user.org).run();
+  return c.json({ ok: true });
+});
+
 coachRoutes.patch('/:id', async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');

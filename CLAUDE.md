@@ -35,6 +35,11 @@ Felter: `id`, `org_id`, `full_name`, `nickname`, `birth_year` (obligatorisk), `s
 - `hs_user_id`: Holdsport bruger-ID — redigeres i spillerprofil, bruges til fremtidig HS-integration
 - `player_teams`-tabellen eksisterer men bruges ikke aktivt i UI pt.
 
+### coaches
+Felter: `id`, `org_id`, `name`, `hs_user_id`.
+- Vises og redigeres i Indstillinger → Trænere
+- Kan tilknyttes `game_roster` som `coach_id`
+
 ### users
 Felter: `id`, `org_id`, `email`, `name`, `password_hash`, `role` ('admin'|'coach').
 - `invite_tokens`: single-use, 7 dages udløb, oprettes af admin
@@ -52,6 +57,7 @@ CORS tillader kun `https://gameday-b2x.pages.dev`.
 - `POST /games/:id/finish` — gem resultat + evaluering
 - `POST /games/:id/focus` — gem fokuspunkter + tally
 - `GET/POST/DELETE /game_roster/:game_id` — fremmødeliste pr. kamp
+- `GET/POST /coaches`, `PATCH/DELETE /coaches/:id` — trænerstyring
 - `GET /users`, `POST /users`, `DELETE /users/:id`, `POST /users/:id/invite` — brugeradmin (kun admin)
 - `GET /users/me`, `PATCH /users/me` — egen profil
 
@@ -71,9 +77,9 @@ Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
 - `/games`     → GamesPage — liste med hold/status/sæson-filter + chip-sortering
 - `/games/:id` → GameDetailPage — detaljer, fokus+tally, rediger, resultat
 - `/stats`     → StatsPage — statistik pr. hold/sæson
-- `/squad`     → SquadPage — trupsstyring: liste, opret/rediger, årgangsfilter, sortering
+- `/squad`     → SquadPage — trupsstyring: liste, opret/rediger, årgangfilter, sortering, inaktive-filter
 - `/profile`   → ProfilePage — rediger navn/kodeord, logout
-- `/settings`  → SettingsPage — hold, webcal, brugere (admin)
+- `/settings`  → SettingsPage — hold, webcal, trænere, Holdsport (ghostet), brugere (admin)
 - `/invite/:token` → AcceptInvitePage — public, accepter invitation
 
 ### Design-tokens (Tailwind)
@@ -93,3 +99,9 @@ Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
 - Max 3 hold per sæson
 - Ingen lokal dev — alt testes via deploy til prod
 - TypeScript strict: ubrugte variabler (`TS6133`) bryder buildet — fjern dem altid
+
+## Holdsport-integration (kommer ~1 uge)
+- Knapper i Indstillinger er ghostede (disabled) indtil integration er klar
+- Planlagt: synkronisér kampe + spillere fra Holdsport API
+- Mapping: `players.hs_user_id`, `coaches.hs_user_id`, `teams.hs_team_id`, `games.hs_activity_id`
+- Worker-route `/holdsport/*` eksisterer men er ikke implementeret
