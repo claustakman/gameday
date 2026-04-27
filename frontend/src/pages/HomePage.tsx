@@ -49,7 +49,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="px-4 pt-6" style={{ paddingBottom: 'calc(1rem + 3.5rem + env(safe-area-inset-bottom))' }}>
+    <div className="px-4 pt-6" style={{ paddingBottom: 'calc(1rem + 4rem + env(safe-area-inset-bottom))' }}>
       {/* Greeting */}
       <h2 className="text-xl font-bold text-text1 mb-5">Hjem</h2>
 
