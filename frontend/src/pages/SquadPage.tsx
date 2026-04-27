@@ -32,14 +32,17 @@ export default function SquadPage() {
   // Teammap til farve-opslag
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
 
+  function byNumber(a: Player, b: Player): number {
+    if (a.shirt_number == null && b.shirt_number == null) return a.full_name.localeCompare(b.full_name);
+    if (a.shirt_number == null) return 1;
+    if (b.shirt_number == null) return -1;
+    return a.shirt_number - b.shirt_number;
+  }
+
   function sorted(list: Player[]): Player[] {
     return [...list].sort((a, b) => {
       if (sortKey === 'number') {
-        // Spillere uden nummer sorteres sidst
-        if (a.shirt_number == null && b.shirt_number == null) return a.full_name.localeCompare(b.full_name);
-        if (a.shirt_number == null) return 1;
-        if (b.shirt_number == null) return -1;
-        return a.shirt_number - b.shirt_number;
+        return byNumber(a, b);
       }
       if (sortKey === 'name') {
         const an = a.nickname ?? a.full_name;
@@ -47,10 +50,12 @@ export default function SquadPage() {
         return an.localeCompare(bn);
       }
       if (sortKey === 'birth_year') {
-        if (a.birth_year == null && b.birth_year == null) return 0;
+        if (a.birth_year == null && b.birth_year == null) return byNumber(a, b);
         if (a.birth_year == null) return 1;
         if (b.birth_year == null) return -1;
-        return a.birth_year - b.birth_year;
+        const diff = a.birth_year - b.birth_year;
+        // Sekundær sortering på nummer når årgange er ens (også ved årgangfilter)
+        return diff !== 0 ? diff : byNumber(a, b);
       }
       return 0;
     });

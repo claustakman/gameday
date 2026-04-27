@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { Game, Team } from '../lib/types';
@@ -11,21 +11,30 @@ export default function GamesPage() {
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
 
-  const [teamId,  setTeamId]  = useState('');
-  const [season,  setSeason]  = useState('');
-  const [status,  setStatus]  = useState('');
-  const [search,  setSearch]  = useState('');
+  const [teamId,       setTeamId]       = useState('');
+  const [season,       setSeason]       = useState('');
+  const [status,       setStatus]       = useState('');
+  const [search,       setSearch]       = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     api.get<Team[]>('/teams').then(setTeams).catch(() => {});
   }, []);
 
+  // Debounce søgning 300ms — undgår flickering ved hver keystroke
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [search]);
+
   function fetchGames(overrides?: { teamId?: string; season?: string; status?: string; search?: string }) {
     setLoading(true);
-    const t = overrides?.teamId  ?? teamId;
-    const se = overrides?.season ?? season;
-    const st = overrides?.status ?? status;
-    const sr = overrides?.search ?? search;
+    const t  = overrides?.teamId  ?? teamId;
+    const se = overrides?.season  ?? season;
+    const st = overrides?.status  ?? status;
+    const sr = overrides?.search  ?? debouncedSearch;
     const params = new URLSearchParams();
     if (t)  params.set('team_id',  t);
     if (se) params.set('season',   se);
@@ -40,7 +49,7 @@ export default function GamesPage() {
 
   useEffect(() => {
     fetchGames();
-  }, [teamId, season, status, search]);
+  }, [teamId, season, status, debouncedSearch]);
 
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
   const seasons = [...new Set(games.map(g => g.season))].sort().reverse();
