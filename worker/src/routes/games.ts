@@ -152,7 +152,7 @@ gameRoutes.get('/:id/roster', async (c) => {
   const id = c.req.param('id');
 
   const roster = await c.env.DB.prepare(`
-    SELECT gr.*, p.full_name as player_name, p.nickname, co.name as coach_name
+    SELECT gr.*, p.full_name as player_name, p.nickname, p.shirt_number, co.name as coach_name
     FROM game_roster gr
     LEFT JOIN players p ON p.id = gr.player_id
     LEFT JOIN coaches co ON co.id = gr.coach_id
@@ -206,6 +206,14 @@ gameRoutes.post('/:id/roster', async (c) => {
   `).bind(id, gameId, player_id ?? null, coach_id ?? null, is_keeper ? 1 : 0, now()).run();
 
   return c.json({ id }, 201);
+});
+
+gameRoutes.patch('/:id/roster/:rosterId', async (c) => {
+  const rosterId = c.req.param('rosterId');
+  const { is_keeper } = await c.req.json<{ is_keeper: boolean }>();
+  await c.env.DB.prepare('UPDATE game_roster SET is_keeper = ? WHERE id = ?')
+    .bind(is_keeper ? 1 : 0, rosterId).run();
+  return c.json({ ok: true });
 });
 
 gameRoutes.delete('/:id/roster/:rosterId', async (c) => {

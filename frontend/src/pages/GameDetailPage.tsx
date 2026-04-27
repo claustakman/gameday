@@ -1,29 +1,72 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
-import type { Game, Team } from '../lib/types';
+import type { Game, Team, Player, RosterEntry } from '../lib/types';
 
 export default function GameDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [game,    setGame]    = useState<Game | null>(null);
-  const [teams,   setTeams]   = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState('');
+  const [game,         setGame]         = useState<Game | null>(null);
+  const [teams,        setTeams]        = useState<Team[]>([]);
+  const [roster,       setRoster]       = useState<RosterEntry[]>([]);
+  const [doubleBooked, setDoubleBooked] = useState<{ player_id: string; name: string; other_team_name: string }[]>([]);
+  const [allPlayers,   setAllPlayers]   = useState<Player[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState('');
 
-  const [showResult, setShowResult] = useState(false);
-  const [showEdit,   setShowEdit]   = useState(false);
+  const [showResult,  setShowResult]  = useState(false);
+  const [showEdit,    setShowEdit]    = useState(false);
+  const [showRoster,  setShowRoster]  = useState(false);
 
   useEffect(() => {
     if (!id) return;
     Promise.all([
       api.get<Game>(`/games/${id}`),
       api.get<Team[]>('/teams'),
+      api.get<Player[]>('/players?active=1'),
     ])
-      .then(([g, ts]) => { setGame(g); setTeams(ts); })
+      .then(([g, ts, ps]) => { setGame(g); setTeams(ts); setAllPlayers(ps); })
       .catch(() => setError('Kunne ikke hente kamp'))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    fetchRoster();
+  }, [id]);
+
+  async function fetchRoster() {
+    if (!id) return;
+    try {
+      const data = await api.get<{ roster: RosterEntry[]; double_booked_players: typeof doubleBooked }>(`/games/${id}/roster`);
+      setRoster(data.roster);
+      setDoubleBooked(data.double_booked_players);
+    } catch {
+      // silent
+    }
+  }
+
+  async function addToRoster(playerId: string) {
+    if (!id) return;
+    const player = allPlayers.find(p => p.id === playerId);
+    const isKeeper = player?.is_default_keeper === 1 && roster.every(r => r.is_keeper === 0);
+    await api.post(`/games/${id}/roster`, { player_id: playerId, is_keeper: isKeeper });
+    await fetchRoster();
+  }
+
+  async function removeFromRoster(rosterId: string) {
+    if (!id) return;
+    await api.delete(`/games/${id}/roster/${rosterId}`);
+    setRoster(rs => rs.filter(r => r.id !== rosterId));
+    await fetchRoster();
+  }
+
+  async function toggleKeeper(rosterId: string, currentIsKeeper: number) {
+    if (!id) return;
+    const newVal = currentIsKeeper === 1 ? false : true;
+    await api.patch(`/games/${id}/roster/${rosterId}`, { is_keeper: newVal });
+    setRoster(rs => rs.map(r => r.id === rosterId ? { ...r, is_keeper: newVal ? 1 : 0 } : r));
+  }
 
   async function incTally(field: 'tally_1' | 'tally_2' | 'tally_3', delta: 1 | -1) {
     if (!game || !id) return;
@@ -197,6 +240,84 @@ export default function GameDetailPage() {
           </section>
         )}
 
+        {/* Fremmøde */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <SectionTitle>Fremmøde {roster.filter(r => r.player_id).length > 0 && `(${roster.filter(r => r.player_id).length})`}</SectionTitle>
+            <button
+              onClick={() => setShowRoster(true)}
+              className="flex items-center gap-1 text-xs font-semibold text-green"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Tilføj spiller
+            </button>
+          </div>
+
+          {doubleBooked.length > 0 && (
+            <div className="mb-3 bg-bg rounded-xl border border-red/30 px-3 py-2.5 flex items-start gap-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red shrink-0 mt-0.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div>
+                <p className="text-xs font-semibold text-red mb-0.5">Dobbeltbooking</p>
+                {doubleBooked.map(db => (
+                  <p key={db.player_id} className="text-xs text-text2">{db.name} spiller også for {db.other_team_name}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {roster.filter(r => r.player_id).length === 0 ? (
+            <p className="text-xs text-text3 py-2">Ingen spillere tilføjet endnu</p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {roster.filter(r => r.player_id).map(entry => {
+                const isDoubleBooked = doubleBooked.some(db => db.player_id === entry.player_id);
+                return (
+                  <div
+                    key={entry.id}
+                    className={`bg-bg rounded-xl border flex items-center gap-3 px-3 py-2.5 ${isDoubleBooked ? 'border-red/40' : 'border-border'}`}
+                  >
+                    {/* Avatar */}
+                    <div className="w-8 h-8 rounded-full bg-bg2 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-text2">
+                        {entry.shirt_number != null ? entry.shirt_number : initials(entry.player_name ?? '')}
+                      </span>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-text1 truncate">
+                        {entry.nickname ?? entry.player_name}
+                        {isDoubleBooked && (
+                          <span className="ml-1.5 text-[10px] font-semibold text-red">⚠</span>
+                        )}
+                      </p>
+                    </div>
+
+                    {/* Keeper toggle */}
+                    <button
+                      onClick={() => toggleKeeper(entry.id, entry.is_keeper)}
+                      className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-bold border transition-colors ${
+                        entry.is_keeper === 1
+                          ? 'border-green bg-green-light text-green-dark'
+                          : 'border-border bg-bg2 text-text3'
+                      }`}
+                    >
+                      K
+                    </button>
+
+                    {/* Fjern */}
+                    <button
+                      onClick={() => removeFromRoster(entry.id)}
+                      className="shrink-0 w-7 h-7 rounded-full bg-bg2 flex items-center justify-center text-text3 active:bg-border"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
         {/* Knapper */}
         <div className="flex flex-col gap-2">
           <button
@@ -234,6 +355,16 @@ export default function GameDetailPage() {
           color={color}
           onClose={() => setShowEdit(false)}
           onSaved={updated => { setGame(updated); setShowEdit(false); }}
+        />
+      )}
+
+      {/* Add to roster sheet */}
+      {showRoster && (
+        <AddToRosterSheet
+          allPlayers={allPlayers}
+          rosterPlayerIds={roster.filter(r => r.player_id).map(r => r.player_id!)}
+          onAdd={async (pid) => { await addToRoster(pid); }}
+          onClose={() => setShowRoster(false)}
         />
       )}
     </div>
@@ -531,7 +662,97 @@ function BottomSheet({ title, children, onClose, scrollable = false }: {
   );
 }
 
+/* ─── Add to roster sheet ─────────────────────────────────────────── */
+function AddToRosterSheet({ allPlayers, rosterPlayerIds, onAdd, onClose }: {
+  allPlayers: Player[];
+  rosterPlayerIds: string[];
+  onAdd: (playerId: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [search,  setSearch]  = useState('');
+  const [adding,  setAdding]  = useState<string | null>(null);
+
+  const available = useMemo(() =>
+    allPlayers
+      .filter(p => !rosterPlayerIds.includes(p.id))
+      .filter(p => {
+        if (!search.trim()) return true;
+        const q = search.toLowerCase();
+        return (p.full_name.toLowerCase().includes(q)) ||
+               (p.nickname?.toLowerCase().includes(q)) ||
+               (p.shirt_number != null && String(p.shirt_number).includes(q));
+      })
+      .sort((a, b) => {
+        if (a.shirt_number != null && b.shirt_number != null) return a.shirt_number - b.shirt_number;
+        if (a.shirt_number != null) return -1;
+        if (b.shirt_number != null) return 1;
+        return a.full_name.localeCompare(b.full_name);
+      }),
+    [allPlayers, rosterPlayerIds, search]
+  );
+
+  async function add(pid: string) {
+    setAdding(pid);
+    try { await onAdd(pid); } finally { setAdding(null); }
+  }
+
+  return (
+    <BottomSheet title="Tilføj spiller" onClose={onClose} scrollable>
+      {/* Søg */}
+      <div className="relative mb-3">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-text3" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          type="search"
+          placeholder="Søg navn eller nummer…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full bg-bg2 rounded-lg pl-9 pr-3 py-2 text-sm text-text1 placeholder-text3 focus:outline-none focus:ring-2 focus:ring-green"
+          autoFocus
+        />
+      </div>
+
+      {available.length === 0 ? (
+        <p className="text-center text-text3 text-sm py-6">
+          {search ? 'Ingen spillere matcher søgningen' : 'Alle aktive spillere er allerede tilføjet'}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {available.map(p => (
+            <button
+              key={p.id}
+              onClick={() => add(p.id)}
+              disabled={adding === p.id}
+              className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl active:bg-bg2 transition-colors disabled:opacity-50"
+            >
+              <div className="w-8 h-8 rounded-full bg-bg2 flex items-center justify-center shrink-0">
+                <span className="text-xs font-bold text-text2">
+                  {p.shirt_number != null ? p.shirt_number : initials(p.full_name)}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-text1 truncate">{p.nickname ?? p.full_name}</p>
+                {p.nickname && <p className="text-xs text-text3 truncate">{p.full_name}</p>}
+              </div>
+              {p.birth_year && <span className="text-xs text-text3 shrink-0">{p.birth_year}</span>}
+              {adding === p.id
+                ? <div className="w-4 h-4 border-2 border-green border-t-transparent rounded-full animate-spin shrink-0" />
+                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-green shrink-0"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              }
+            </button>
+          ))}
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
 /* ─── Helpers ─────────────────────────────────────────────────────── */
+function initials(name: string): string {
+  return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+}
+
 function MetaItem({ icon, children }: { icon: string; children: React.ReactNode }) {
   return (
     <span className="flex items-center gap-1 text-xs text-text2">

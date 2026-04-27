@@ -63,6 +63,7 @@ export interface RosterEntry {
   is_keeper: number;
   player_name: string | null;
   nickname: string | null;
+  shirt_number: number | null;
   coach_name: string | null;
 }
 
