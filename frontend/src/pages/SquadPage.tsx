@@ -1,36 +1,30 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import type { Player, Team } from '../lib/types';
+import type { Player } from '../lib/types';
 
 export default function SquadPage() {
   const [players,  setPlayers]  = useState<Player[]>([]);
-  const [teams,    setTeams]    = useState<Team[]>([]);
   const [loading,  setLoading]  = useState(true);
 
   const [showInactive, setShowInactive] = useState(false);
-  const [teamFilter,   setTeamFilter]   = useState('');
+  const [yearFilter,   setYearFilter]   = useState('');
   const [showAdd,      setShowAdd]      = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      api.get<Player[]>('/players').catch(() => [] as Player[]),
-      api.get<Team[]>('/teams').catch(()   => [] as Team[]),
-    ]).then(([p, t]) => {
-      setPlayers(p);
-      setTeams(t);
-    }).finally(() => setLoading(false));
+    api.get<Player[]>('/players')
+      .then(setPlayers)
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  const currentSeason = (() => {
-    const y = new Date().getFullYear();
-    return `${y}/${String(y + 1).slice(2)}`;
-  })();
-
-  // Sæsonhold til filter-chips
-  const seasonTeams = teams.filter(t => t.season === currentSeason);
+  // Unikke årgange til filter-chips
+  const years = Array.from(
+    new Set(players.map(p => p.birth_year).filter(Boolean) as number[])
+  ).sort();
 
   const visible = players.filter(p => {
     if (!showInactive && p.active === 0) return false;
+    if (yearFilter && String(p.birth_year) !== yearFilter) return false;
     return true;
   });
 
@@ -64,23 +58,24 @@ export default function SquadPage() {
             onClick={() => setShowAdd(true)}
             className="flex items-center gap-1 bg-green text-white text-sm font-semibold px-3 py-1.5 rounded-lg"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
             Ny spiller
           </button>
         </div>
 
-        {/* Hold-chips */}
-        {seasonTeams.length > 1 && (
+        {/* Årgangfilter */}
+        {years.length > 1 && (
           <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-            <ChipButton active={teamFilter === ''} onClick={() => setTeamFilter('')}>Alle</ChipButton>
-            {seasonTeams.map(t => (
+            <ChipButton active={yearFilter === ''} onClick={() => setYearFilter('')}>Alle</ChipButton>
+            {years.map(y => (
               <ChipButton
-                key={t.id}
-                active={teamFilter === t.id}
-                color={t.color}
-                onClick={() => setTeamFilter(teamFilter === t.id ? '' : t.id)}
+                key={y}
+                active={yearFilter === String(y)}
+                onClick={() => setYearFilter(yearFilter === String(y) ? '' : String(y))}
               >
-                {t.name}
+                {y}
               </ChipButton>
             ))}
           </div>
@@ -90,11 +85,13 @@ export default function SquadPage() {
       {/* Liste */}
       <div className="flex-1 px-4 py-3 flex flex-col gap-1">
         {active.length === 0 && (
-          <p className="text-center text-text3 text-sm pt-12">Ingen spillere endnu — tilføj den første</p>
+          <p className="text-center text-text3 text-sm pt-12">
+            {yearFilter ? `Ingen spillere fra ${yearFilter}` : 'Ingen spillere endnu — tilføj den første'}
+          </p>
         )}
 
         {active.map(p => (
-          <PlayerRow key={p.id} player={p} teams={teams} season={currentSeason} onUpdated={onUpdated} />
+          <PlayerRow key={p.id} player={p} onUpdated={onUpdated} />
         ))}
 
         {inactive.length > 0 && (
@@ -110,15 +107,12 @@ export default function SquadPage() {
         )}
 
         {showInactive && inactive.map(p => (
-          <PlayerRow key={p.id} player={p} teams={teams} season={currentSeason} onUpdated={onUpdated} />
+          <PlayerRow key={p.id} player={p} onUpdated={onUpdated} />
         ))}
       </div>
 
-      {/* Add sheet */}
       {showAdd && (
         <AddPlayerSheet
-          teams={teams}
-          season={currentSeason}
           onClose={() => setShowAdd(false)}
           onAdded={onAdded}
         />
@@ -128,10 +122,8 @@ export default function SquadPage() {
 }
 
 /* ─── PlayerRow ──────────────────────────────────────────────────── */
-function PlayerRow({ player, teams, season, onUpdated }: {
+function PlayerRow({ player, onUpdated }: {
   player: Player;
-  teams: Team[];
-  season: string;
   onUpdated: (p: Player) => void;
 }) {
   const [showEdit, setShowEdit] = useState(false);
@@ -146,9 +138,12 @@ function PlayerRow({ player, teams, season, onUpdated }: {
         onClick={() => setShowEdit(true)}
         className={`w-full text-left bg-bg rounded-xl border border-border px-4 py-3 flex items-center gap-3 active:bg-bg2 transition-colors ${player.active === 0 ? 'opacity-50' : ''}`}
       >
-        {/* Avatar */}
-        <div className="w-9 h-9 rounded-full bg-bg2 flex items-center justify-center shrink-0 text-sm font-bold text-text2">
-          {initials(player.full_name)}
+        {/* Nummer / Avatar */}
+        <div className="w-9 h-9 rounded-full bg-bg2 flex items-center justify-center shrink-0">
+          {player.shirt_number != null
+            ? <span className="text-sm font-bold text-text2">{player.shirt_number}</span>
+            : <span className="text-sm font-bold text-text2">{initials(player.full_name)}</span>
+          }
         </div>
 
         <div className="flex-1 min-w-0">
@@ -174,8 +169,6 @@ function PlayerRow({ player, teams, season, onUpdated }: {
       {showEdit && (
         <EditPlayerSheet
           player={player}
-          teams={teams}
-          season={season}
           onClose={() => setShowEdit(false)}
           onSaved={updated => { onUpdated(updated); setShowEdit(false); }}
         />
@@ -185,46 +178,36 @@ function PlayerRow({ player, teams, season, onUpdated }: {
 }
 
 /* ─── AddPlayerSheet ─────────────────────────────────────────────── */
-function AddPlayerSheet({ teams, season, onClose, onAdded }: {
-  teams: Team[];
-  season: string;
+function AddPlayerSheet({ onClose, onAdded }: {
   onClose: () => void;
   onAdded: (p: Player) => void;
 }) {
-  const [fullName,   setFullName]   = useState('');
-  const [nickname,   setNickname]   = useState('');
-  const [birthYear,  setBirthYear]  = useState('');
-  const [isKeeper,   setIsKeeper]   = useState(false);
-  const [teamIds,    setTeamIds]    = useState<string[]>([]);
-  const [saving,     setSaving]     = useState(false);
-  const [error,      setError]      = useState('');
-
-  const seasonTeams = teams.filter(t => t.season === season);
-
-  function toggleTeam(id: string) {
-    setTeamIds(ts => ts.includes(id) ? ts.filter(x => x !== id) : [...ts, id]);
-  }
+  const [fullName,     setFullName]     = useState('');
+  const [nickname,     setNickname]     = useState('');
+  const [birthYear,    setBirthYear]    = useState('');
+  const [shirtNumber,  setShirtNumber]  = useState('');
+  const [isKeeper,     setIsKeeper]     = useState(false);
+  const [saving,       setSaving]       = useState(false);
+  const [error,        setError]        = useState('');
 
   async function save() {
     if (!fullName.trim()) { setError('Navn er påkrævet'); return; }
     setError(''); setSaving(true);
     try {
       const { id } = await api.post<{ id: string }>('/players', {
-        full_name: fullName.trim(),
-        nickname:  nickname.trim() || null,
-        birth_year: birthYear ? parseInt(birthYear) : null,
+        full_name:         fullName.trim(),
+        nickname:          nickname.trim() || null,
+        birth_year:        birthYear   ? parseInt(birthYear)   : null,
+        shirt_number:      shirtNumber ? parseInt(shirtNumber) : null,
         is_default_keeper: isKeeper,
       });
 
-      // Tilknyt hold
-      for (const teamId of teamIds) {
-        await api.post(`/players/${id}/teams`, { team_id: teamId, season }).catch(() => {});
-      }
-
       onAdded({
-        id, org_id: '', full_name: fullName.trim(),
-        nickname: nickname.trim() || null,
-        birth_year: birthYear ? parseInt(birthYear) : null,
+        id, org_id: '',
+        full_name:         fullName.trim(),
+        nickname:          nickname.trim() || null,
+        birth_year:        birthYear   ? parseInt(birthYear)   : null,
+        shirt_number:      shirtNumber ? parseInt(shirtNumber) : null,
         is_default_keeper: isKeeper ? 1 : 0,
         hs_user_id: null, active: 1,
       });
@@ -241,9 +224,8 @@ function AddPlayerSheet({ teams, season, onClose, onAdded }: {
         fullName={fullName} setFullName={setFullName}
         nickname={nickname} setNickname={setNickname}
         birthYear={birthYear} setBirthYear={setBirthYear}
+        shirtNumber={shirtNumber} setShirtNumber={setShirtNumber}
         isKeeper={isKeeper} setIsKeeper={setIsKeeper}
-        teamIds={teamIds} toggleTeam={toggleTeam}
-        seasonTeams={seasonTeams}
         error={error}
       />
       <div className="pt-4 border-t border-border mt-2">
@@ -257,53 +239,37 @@ function AddPlayerSheet({ teams, season, onClose, onAdded }: {
 }
 
 /* ─── EditPlayerSheet ────────────────────────────────────────────── */
-function EditPlayerSheet({ player, teams, season, onClose, onSaved }: {
+function EditPlayerSheet({ player, onClose, onSaved }: {
   player: Player;
-  teams: Team[];
-  season: string;
   onClose: () => void;
   onSaved: (p: Player) => void;
 }) {
-  const [fullName,  setFullName]  = useState(player.full_name);
-  const [nickname,  setNickname]  = useState(player.nickname ?? '');
-  const [birthYear, setBirthYear] = useState(player.birth_year ? String(player.birth_year) : '');
-  const [isKeeper,  setIsKeeper]  = useState(player.is_default_keeper === 1);
-  const [teamIds,   setTeamIds]   = useState<string[]>([]);
-  const [saving,    setSaving]    = useState(false);
-  const [error,     setError]     = useState('');
-
-  const seasonTeams = teams.filter(t => t.season === season);
-
-  // Hent eksisterende holdtilknytninger
-  useEffect(() => {
-    api.get<{ team_id: string }[]>(`/players/${player.id}/teams`)
-      .then(rows => setTeamIds(rows.map(r => r.team_id)))
-      .catch(() => {});
-  }, [player.id]);
-
-  function toggleTeam(id: string) {
-    setTeamIds(ts => ts.includes(id) ? ts.filter(x => x !== id) : [...ts, id]);
-  }
+  const [fullName,    setFullName]    = useState(player.full_name);
+  const [nickname,    setNickname]    = useState(player.nickname ?? '');
+  const [birthYear,   setBirthYear]   = useState(player.birth_year   ? String(player.birth_year)   : '');
+  const [shirtNumber, setShirtNumber] = useState(player.shirt_number != null ? String(player.shirt_number) : '');
+  const [isKeeper,    setIsKeeper]    = useState(player.is_default_keeper === 1);
+  const [saving,      setSaving]      = useState(false);
+  const [error,       setError]       = useState('');
 
   async function save() {
     if (!fullName.trim()) { setError('Navn er påkrævet'); return; }
     setError(''); setSaving(true);
     try {
       await api.patch(`/players/${player.id}`, {
-        full_name: fullName.trim(),
-        nickname:  nickname.trim() || null,
-        birth_year: birthYear ? parseInt(birthYear) : null,
+        full_name:         fullName.trim(),
+        nickname:          nickname.trim() || null,
+        birth_year:        birthYear   ? parseInt(birthYear)   : null,
+        shirt_number:      shirtNumber ? parseInt(shirtNumber) : null,
         is_default_keeper: isKeeper ? 1 : 0,
       });
 
-      // Synk holdtilknytninger
-      await api.post(`/players/${player.id}/teams/sync`, { team_ids: teamIds, season }).catch(() => {});
-
       onSaved({
         ...player,
-        full_name: fullName.trim(),
-        nickname:  nickname.trim() || null,
-        birth_year: birthYear ? parseInt(birthYear) : null,
+        full_name:         fullName.trim(),
+        nickname:          nickname.trim() || null,
+        birth_year:        birthYear   ? parseInt(birthYear)   : null,
+        shirt_number:      shirtNumber ? parseInt(shirtNumber) : null,
         is_default_keeper: isKeeper ? 1 : 0,
       });
     } catch (e) {
@@ -325,9 +291,8 @@ function EditPlayerSheet({ player, teams, season, onClose, onSaved }: {
         fullName={fullName} setFullName={setFullName}
         nickname={nickname} setNickname={setNickname}
         birthYear={birthYear} setBirthYear={setBirthYear}
+        shirtNumber={shirtNumber} setShirtNumber={setShirtNumber}
         isKeeper={isKeeper} setIsKeeper={setIsKeeper}
-        teamIds={teamIds} toggleTeam={toggleTeam}
-        seasonTeams={seasonTeams}
         error={error}
       />
       <div className="pt-4 border-t border-border mt-2 flex flex-col gap-2">
@@ -351,15 +316,14 @@ function EditPlayerSheet({ player, teams, season, onClose, onSaved }: {
 /* ─── Delt formular ──────────────────────────────────────────────── */
 function PlayerForm({
   fullName, setFullName, nickname, setNickname,
-  birthYear, setBirthYear, isKeeper, setIsKeeper,
-  teamIds, toggleTeam, seasonTeams, error,
+  birthYear, setBirthYear, shirtNumber, setShirtNumber,
+  isKeeper, setIsKeeper, error,
 }: {
   fullName: string; setFullName: (v: string) => void;
   nickname: string; setNickname: (v: string) => void;
   birthYear: string; setBirthYear: (v: string) => void;
+  shirtNumber: string; setShirtNumber: (v: string) => void;
   isKeeper: boolean; setIsKeeper: (v: boolean) => void;
-  teamIds: string[]; toggleTeam: (id: string) => void;
-  seasonTeams: Team[];
   error: string;
 }) {
   const inputCls = 'w-full border border-border rounded-lg px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg';
@@ -374,14 +338,29 @@ function PlayerForm({
         <label className="block text-xs font-medium text-text2 mb-1.5">Kaldenavn (valgfri)</label>
         <input value={nickname} onChange={e => setNickname(e.target.value)} placeholder="Bruges i UI" className={inputCls} />
       </div>
-      <div>
-        <label className="block text-xs font-medium text-text2 mb-1.5">Fødselsår (valgfri)</label>
-        <input type="number" value={birthYear} onChange={e => setBirthYear(e.target.value)}
-          placeholder="fx 2013" min="1990" max="2020" className={inputCls} />
+
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <label className="block text-xs font-medium text-text2 mb-1.5">Fødselsår (valgfri)</label>
+          <input
+            type="number" value={birthYear} onChange={e => setBirthYear(e.target.value)}
+            placeholder="fx 2013" min="1990" max="2020"
+            className={inputCls}
+          />
+        </div>
+        <div className="w-28">
+          <label className="block text-xs font-medium text-text2 mb-1.5">Trøjenummer</label>
+          <input
+            type="number" value={shirtNumber} onChange={e => setShirtNumber(e.target.value)}
+            placeholder="fx 7" min="1" max="99"
+            className={inputCls}
+          />
+        </div>
       </div>
 
       {/* Keeper toggle */}
       <button
+        type="button"
         onClick={() => setIsKeeper(!isKeeper)}
         className={`flex items-center justify-between w-full px-4 py-3 rounded-xl border transition-colors ${
           isKeeper ? 'border-green bg-green-light' : 'border-border bg-bg'
@@ -392,30 +371,6 @@ function PlayerForm({
           <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${isKeeper ? 'translate-x-5' : 'translate-x-1'}`} />
         </div>
       </button>
-
-      {/* Holdtilknytning */}
-      {seasonTeams.length > 0 && (
-        <div>
-          <label className="block text-xs font-medium text-text2 mb-1.5">Hold ({new Date().getFullYear()}/{String(new Date().getFullYear() + 1).slice(2)})</label>
-          <div className="flex gap-2 flex-wrap">
-            {seasonTeams.map(t => (
-              <button
-                key={t.id}
-                onClick={() => toggleTeam(t.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-colors"
-                style={{
-                  borderColor: teamIds.includes(t.id) ? t.color : 'transparent',
-                  backgroundColor: teamIds.includes(t.id) ? t.color + '22' : '#f5f5f5',
-                  color: teamIds.includes(t.id) ? t.color : '#666',
-                }}
-              >
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
-                {t.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {error && <p className="text-red text-sm">{error}</p>}
     </div>
@@ -454,16 +409,15 @@ function BottomSheet({ title, children, onClose, scrollable = false }: {
 }
 
 /* ─── Helpers ────────────────────────────────────────────────────── */
-function ChipButton({ children, active, color, onClick }: {
-  children: React.ReactNode; active: boolean; color?: string; onClick: () => void;
+function ChipButton({ children, active, onClick }: {
+  children: React.ReactNode; active: boolean; onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
       className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-colors whitespace-nowrap ${
-        active ? (color ? 'border-transparent' : 'bg-green text-white border-transparent') : 'bg-bg2 text-text2 border-transparent'
+        active ? 'bg-green text-white border-transparent' : 'bg-bg2 text-text2 border-transparent'
       }`}
-      style={active && color ? { backgroundColor: color + '22', borderColor: color, color } : {}}
     >
       {children}
     </button>

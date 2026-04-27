@@ -48,7 +48,7 @@ playerRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json<Record<string, unknown>>();
 
-  const allowed = ['full_name', 'nickname', 'birth_year', 'is_default_keeper', 'active', 'hs_user_id'];
+  const allowed = ['full_name', 'nickname', 'birth_year', 'shirt_number', 'is_default_keeper', 'active', 'hs_user_id'];
   const fields = Object.entries(body).filter(([k]) => allowed.includes(k));
   if (fields.length === 0) return c.json({ error: 'Nothing to update' }, 400);
 
