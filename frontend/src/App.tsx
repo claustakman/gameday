@@ -7,9 +7,16 @@ import GamesPage from './pages/GamesPage';
 import StatsPage from './pages/StatsPage';
 import SettingsPage from './pages/SettingsPage';
 import GameDetailPage from './pages/GameDetailPage';
+import AcceptInvitePage from './pages/AcceptInvitePage';
 
 function AppShell() {
   const { token } = useAuth();
+
+  // Invite page is always public — no auth required
+  if (window.location.pathname.startsWith('/invite/')) {
+    return <Routes><Route path="/invite/:token" element={<AcceptInvitePage />} /></Routes>;
+  }
+
   if (!token) return <LoginPage />;
   return (
     <div className="flex flex-col min-h-screen bg-bg2">

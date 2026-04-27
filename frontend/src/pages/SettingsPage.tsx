@@ -12,8 +12,17 @@ const COLORS = [
   { label: 'Grå',    value: '#6B7280' },
 ];
 
+interface OrgUser {
+  id: string;
+  email: string;
+  name: string;
+  role: 'admin' | 'coach';
+}
+
 export default function SettingsPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
   const [teams, setTeams]     = useState<Team[]>([]);
   const [season, setSeason]   = useState(() => {
     const y = new Date().getFullYear();
@@ -29,6 +38,23 @@ export default function SettingsPage() {
   const [newColor,       setNewColor]       = useState(COLORS[0].value);
   const [newHsId,        setNewHsId]        = useState('');
 
+  // Profil
+  const [profileName,     setProfileName]     = useState(user?.name ?? '');
+  const [profilePw,       setProfilePw]       = useState('');
+  const [profilePwRepeat, setProfilePwRepeat] = useState('');
+  const [profileSaving,   setProfileSaving]   = useState(false);
+  const [profileMsg,      setProfileMsg]      = useState('');
+
+  // Brugere (admin)
+  const [orgUsers,    setOrgUsers]    = useState<OrgUser[]>([]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserName,  setNewUserName]  = useState('');
+  const [newUserRole,  setNewUserRole]  = useState<'coach' | 'admin'>('coach');
+  const [addingUser,   setAddingUser]   = useState(false);
+  const [userSaving,   setUserSaving]   = useState(false);
+  const [inviteLink,   setInviteLink]   = useState<{ userId: string; url: string } | null>(null);
+
   useEffect(() => {
     api.get<Team[]>('/teams').then(setTeams).catch(() => {});
   }, []);
@@ -41,6 +67,11 @@ export default function SettingsPage() {
       .catch(() => {});
   }, [season]);
 
+  useEffect(() => {
+    if (!isAdmin || usersLoaded) return;
+    api.get<OrgUser[]>('/users').then(u => { setOrgUsers(u); setUsersLoaded(true); }).catch(() => {});
+  }, [isAdmin]);
+
   async function saveWebcal() {
     setSaving('webcal');
     try {
@@ -52,7 +83,64 @@ export default function SettingsPage() {
     }
   }
 
-  const seasonTeams = teams.filter(t => t.season === season);
+  async function saveProfile() {
+    if (profilePw && profilePw !== profilePwRepeat) {
+      setProfileMsg('Adgangskoderne matcher ikke');
+      return;
+    }
+    setProfileMsg('');
+    setProfileSaving(true);
+    try {
+      const body: Record<string, string> = {};
+      if (profileName.trim() && profileName.trim() !== user?.name) body.name = profileName.trim();
+      if (profilePw) body.password = profilePw;
+      if (Object.keys(body).length === 0) { setProfileMsg('Ingen ændringer'); return; }
+
+      await api.patch('/users/me', body);
+      if (body.name) updateUser({ name: body.name });
+      setProfilePw(''); setProfilePwRepeat('');
+      setProfileMsg('Gemt ✓');
+      setTimeout(() => setProfileMsg(''), 2500);
+    } catch (e) {
+      setProfileMsg(e instanceof Error ? e.message : 'Fejl');
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  async function addUser() {
+    if (!newUserEmail.trim() || !newUserName.trim()) return;
+    setUserSaving(true);
+    try {
+      const created = await api.post<OrgUser>('/users', {
+        email: newUserEmail.trim(),
+        name: newUserName.trim(),
+        role: newUserRole,
+      });
+      setOrgUsers(u => [...u, created]);
+      setNewUserEmail(''); setNewUserName(''); setNewUserRole('coach');
+      setAddingUser(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Fejl');
+    } finally {
+      setUserSaving(false);
+    }
+  }
+
+  async function deleteUser(id: string) {
+    if (!confirm('Slet brugeren?')) return;
+    await api.delete(`/users/${id}`);
+    setOrgUsers(u => u.filter(x => x.id !== id));
+    if (inviteLink?.userId === id) setInviteLink(null);
+  }
+
+  async function generateInvite(userId: string) {
+    const { token } = await api.post<{ token: string }>(`/users/${userId}/invite`, {});
+    const base = import.meta.env.VITE_APP_URL ?? window.location.origin;
+    setInviteLink({ userId, url: `${base}/invite/${token}` });
+  }
+
+  const seasonTeams  = teams.filter(t => t.season === season);
   const otherSeasons = [...new Set(teams.map(t => t.season).filter(s => s !== season))].sort().reverse();
 
   async function saveTeam(id: string, patch: Partial<Team>) {
@@ -93,29 +181,78 @@ export default function SettingsPage() {
     setTeams(ts => ts.filter(t => t.id !== id));
   }
 
+  const inputCls = 'w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green bg-bg';
+
   return (
     <div className="px-4 pt-6 pb-8">
       <h2 className="text-xl font-bold text-text1 mb-6">Indstillinger</h2>
 
-      {/* Hold-sektion */}
+      {/* ── Profil ─────────────────────────────────────────────────── */}
+      <section className="mb-8">
+        <h3 className="text-base font-semibold text-text1 mb-3">Profil</h3>
+        <div className="bg-bg border border-border rounded-xl p-4 flex flex-col gap-3">
+          <div>
+            <label className="block text-xs font-medium text-text2 mb-1">Email</label>
+            <p className="text-sm text-text3">{user?.email}</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-text2 mb-1">Navn</label>
+            <input
+              value={profileName}
+              onChange={e => setProfileName(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-text2 mb-1">Nyt kodeord</label>
+            <input
+              type="password"
+              placeholder="Minimum 6 tegn"
+              value={profilePw}
+              onChange={e => setProfilePw(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+          {profilePw && (
+            <div>
+              <label className="block text-xs font-medium text-text2 mb-1">Gentag kodeord</label>
+              <input
+                type="password"
+                placeholder="Gentag kodeord"
+                value={profilePwRepeat}
+                onChange={e => setProfilePwRepeat(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+          )}
+          {profileMsg && (
+            <p className={`text-xs ${profileMsg.includes('✓') ? 'text-green' : 'text-red'}`}>{profileMsg}</p>
+          )}
+          <button
+            onClick={saveProfile}
+            disabled={profileSaving}
+            className="w-full bg-green text-white rounded-lg py-2 text-sm font-semibold disabled:opacity-50"
+          >
+            {profileSaving ? 'Gemmer…' : 'Gem profil'}
+          </button>
+        </div>
+      </section>
+
+      {/* ── Hold ───────────────────────────────────────────────────── */}
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-base font-semibold text-text1">Hold</h3>
-          {/* Sæsonvælger */}
-          <div className="flex items-center gap-2">
-            <select
-              value={season}
-              onChange={e => setSeason(e.target.value)}
-              className="bg-bg2 rounded-lg px-2 py-1 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green"
-            >
-              <option value={season}>{season}</option>
-              {otherSeasons.map(s => <option key={s} value={s}>{s}</option>)}
-              {/* Mulighed for ny sæson */}
-              {!teams.some(t => t.season === nextSeason(season)) && (
-                <option value={nextSeason(season)}>{nextSeason(season)} (ny)</option>
-              )}
-            </select>
-          </div>
+          <select
+            value={season}
+            onChange={e => setSeason(e.target.value)}
+            className="bg-bg2 rounded-lg px-2 py-1 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green"
+          >
+            <option value={season}>{season}</option>
+            {otherSeasons.map(s => <option key={s} value={s}>{s}</option>)}
+            {!teams.some(t => t.season === nextSeason(season)) && (
+              <option value={nextSeason(season)}>{nextSeason(season)} (ny)</option>
+            )}
+          </select>
         </div>
 
         <div className="flex flex-col gap-3">
@@ -133,66 +270,35 @@ export default function SettingsPage() {
             <p className="text-text3 text-sm text-center py-4">Ingen hold for {season}</p>
           )}
 
-          {/* Nyt hold formular */}
           {adding ? (
             <div className="bg-bg border border-border rounded-xl p-4 flex flex-col gap-3">
               <p className="text-sm font-semibold text-text1">Nyt hold — {season}</p>
-              <input
-                placeholder="Navn (samme som i Holdsport)"
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
-              />
-              <input
-                placeholder="Beskrivelse (valgfri)"
-                value={newDescription}
-                onChange={e => setNewDescription(e.target.value)}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
-              />
-              <input
-                placeholder="Holdsport ID (valgfri)"
-                value={newHsId}
-                onChange={e => setNewHsId(e.target.value)}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
-              />
+              <input placeholder="Navn" value={newName} onChange={e => setNewName(e.target.value)} className={inputCls} />
+              <input placeholder="Beskrivelse (valgfri)" value={newDescription} onChange={e => setNewDescription(e.target.value)} className={inputCls} />
+              <input placeholder="Holdsport ID (valgfri)" value={newHsId} onChange={e => setNewHsId(e.target.value)} className={inputCls} />
               <div>
                 <p className="text-xs text-text2 mb-1.5">Farve</p>
                 <div className="flex gap-2 flex-wrap">
                   {COLORS.map(c => (
-                    <button
-                      key={c.value}
-                      onClick={() => setNewColor(c.value)}
+                    <button key={c.value} onClick={() => setNewColor(c.value)}
                       className="w-7 h-7 rounded-full border-2 transition-all"
-                      style={{
-                        backgroundColor: c.value,
-                        borderColor: newColor === c.value ? '#1a1a1a' : 'transparent',
-                      }}
-                      title={c.label}
-                    />
+                      style={{ backgroundColor: c.value, borderColor: newColor === c.value ? '#1a1a1a' : 'transparent' }}
+                      title={c.label} />
                   ))}
                 </div>
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => { setAdding(false); setNewName(''); setNewDescription(''); setNewHsId(''); }}
-                  className="flex-1 border border-border rounded-lg py-2 text-sm text-text2"
-                >
-                  Annuller
-                </button>
-                <button
-                  onClick={addTeam}
-                  disabled={!newName.trim() || saving === 'new'}
-                  className="flex-1 bg-green text-white rounded-lg py-2 text-sm font-semibold disabled:opacity-50"
-                >
+                <button onClick={() => { setAdding(false); setNewName(''); setNewDescription(''); setNewHsId(''); }}
+                  className="flex-1 border border-border rounded-lg py-2 text-sm text-text2">Annuller</button>
+                <button onClick={addTeam} disabled={!newName.trim() || saving === 'new'}
+                  className="flex-1 bg-green text-white rounded-lg py-2 text-sm font-semibold disabled:opacity-50">
                   {saving === 'new' ? 'Gemmer…' : 'Opret hold'}
                 </button>
               </div>
             </div>
           ) : seasonTeams.length < 3 && (
-            <button
-              onClick={() => setAdding(true)}
-              className="flex items-center justify-center gap-2 border border-dashed border-border rounded-xl py-4 text-sm text-text3 active:bg-bg2"
-            >
+            <button onClick={() => setAdding(true)}
+              className="flex items-center justify-center gap-2 border border-dashed border-border rounded-xl py-4 text-sm text-text3 active:bg-bg2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Tilføj hold
             </button>
@@ -200,37 +306,133 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* Webcal */}
+      {/* ── Webcal ─────────────────────────────────────────────────── */}
       <section className="mb-8">
         <h3 className="text-base font-semibold text-text1 mb-3">Kalender — {season}</h3>
         <p className="text-xs text-text2 mb-2">Webcal-link med kampe for alle hold i sæsonen</p>
         <div className="flex gap-2">
-          <input
-            type="url"
-            placeholder="webcal://…"
-            value={webcalUrl}
+          <input type="url" placeholder="webcal://…" value={webcalUrl}
             onChange={e => { setWebcalUrl(e.target.value); setWebcalSaved(false); }}
-            className="flex-1 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green min-w-0"
-          />
-          <button
-            onClick={saveWebcal}
-            disabled={saving === 'webcal'}
-            className="shrink-0 bg-green text-white rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50"
-          >
+            className="flex-1 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green min-w-0 bg-bg" />
+          <button onClick={saveWebcal} disabled={saving === 'webcal'}
+            className="shrink-0 bg-green text-white rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50">
             {webcalSaved ? '✓' : saving === 'webcal' ? '…' : 'Gem'}
           </button>
         </div>
       </section>
 
-      {/* Bruger */}
+      {/* ── Brugere (kun admin) ────────────────────────────────────── */}
+      {isAdmin && (
+        <section className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold text-text1">Brugere</h3>
+            {!addingUser && (
+              <button
+                onClick={() => setAddingUser(true)}
+                className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-green text-white"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Ny bruger
+              </button>
+            )}
+          </div>
+
+          {/* Nyt bruger-formular */}
+          {addingUser && (
+            <div className="bg-bg border border-border rounded-xl p-4 flex flex-col gap-3 mb-3">
+              <p className="text-sm font-semibold text-text1">Ny bruger</p>
+              <input placeholder="Navn" value={newUserName} onChange={e => setNewUserName(e.target.value)} className={inputCls} />
+              <input placeholder="Email" type="email" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} className={inputCls} />
+              <div>
+                <label className="block text-xs font-medium text-text2 mb-1.5">Rolle</label>
+                <div className="flex rounded-lg overflow-hidden border border-border">
+                  <button onClick={() => setNewUserRole('coach')}
+                    className={`flex-1 py-2 text-sm font-medium transition-colors ${newUserRole === 'coach' ? 'bg-green text-white' : 'bg-bg text-text2'}`}>
+                    Træner
+                  </button>
+                  <button onClick={() => setNewUserRole('admin')}
+                    className={`flex-1 py-2 text-sm font-medium transition-colors ${newUserRole === 'admin' ? 'bg-green text-white' : 'bg-bg text-text2'}`}>
+                    Admin
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { setAddingUser(false); setNewUserEmail(''); setNewUserName(''); setNewUserRole('coach'); }}
+                  className="flex-1 border border-border rounded-lg py-2 text-sm text-text2">Annuller</button>
+                <button onClick={addUser} disabled={userSaving || !newUserEmail.trim() || !newUserName.trim()}
+                  className="flex-1 bg-green text-white rounded-lg py-2 text-sm font-semibold disabled:opacity-50">
+                  {userSaving ? 'Gemmer…' : 'Opret'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Brugerliste */}
+          <div className="flex flex-col gap-2">
+            {orgUsers.map(u => (
+              <div key={u.id} className="bg-bg border border-border rounded-xl p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="font-semibold text-text1 text-sm">{u.name}</p>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${u.role === 'admin' ? 'bg-green text-white' : 'bg-bg2 text-text2'}`}>
+                        {u.role === 'admin' ? 'Admin' : 'Træner'}
+                      </span>
+                      {u.id === user?.id && (
+                        <span className="text-[10px] text-text3">(dig)</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-text3 truncate">{u.email}</p>
+                  </div>
+                  <div className="flex gap-1.5 shrink-0">
+                    <button
+                      onClick={() => generateInvite(u.id)}
+                      className="text-xs font-semibold px-2 py-1 rounded-lg bg-bg2 text-text2"
+                      title="Generer invitationslink"
+                    >
+                      🔗
+                    </button>
+                    {u.id !== user?.id && (
+                      <button onClick={() => deleteUser(u.id)}
+                        className="text-xs px-2 py-1 rounded-lg bg-bg2 text-red">
+                        Slet
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Invitationslink for denne bruger */}
+                {inviteLink?.userId === u.id && (
+                  <div className="mt-3 bg-bg2 rounded-lg p-3">
+                    <p className="text-[11px] font-semibold text-text2 mb-1">Invitationslink (gyldigt 7 dage)</p>
+                    <div className="flex gap-2">
+                      <p className="text-[11px] text-text3 flex-1 break-all">{inviteLink.url}</p>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(inviteLink.url)}
+                        className="shrink-0 text-xs font-semibold text-green"
+                      >
+                        Kopiér
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Log ud ─────────────────────────────────────────────────── */}
       <section className="border-t border-border pt-6">
         {user && (
-          <p className="text-text2 text-sm mb-4">Logget ind som <strong className="text-text1">{user.name}</strong></p>
+          <p className="text-text2 text-sm mb-4">
+            Logget ind som <strong className="text-text1">{user.name}</strong>
+            <span className="ml-2 text-[11px] font-medium px-2 py-0.5 rounded-full bg-bg2 text-text3">
+              {user.role === 'admin' ? 'Admin' : 'Træner'}
+            </span>
+          </p>
         )}
-        <button
-          onClick={logout}
-          className="w-full border border-red text-red rounded-lg py-3 text-sm font-semibold"
-        >
+        <button onClick={logout} className="w-full border border-red text-red rounded-lg py-3 text-sm font-semibold">
           Log ud
         </button>
       </section>
@@ -238,11 +440,10 @@ export default function SettingsPage() {
   );
 }
 
+/* ─── TeamCard ────────────────────────────────────────────────────── */
 function TeamCard({ team, saving, onSave, onDelete }: {
-  team: Team;
-  saving: boolean;
-  onSave: (patch: Partial<Team>) => void;
-  onDelete: () => void;
+  team: Team; saving: boolean;
+  onSave: (patch: Partial<Team>) => void; onDelete: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [name,        setName]        = useState(team.name);
@@ -251,78 +452,49 @@ function TeamCard({ team, saving, onSave, onDelete }: {
   const [hsId,        setHsId]        = useState(team.hs_team_id ?? '');
 
   function save() {
-    onSave({
-      name: name.trim() || team.name,
-      description: description.trim() || null,
-      color,
-      hs_team_id: hsId.trim() || null,
-    });
+    onSave({ name: name.trim() || team.name, description: description.trim() || null, color, hs_team_id: hsId.trim() || null });
     setEditing(false);
   }
 
-  if (!editing) {
-    return (
-      <div className="bg-bg border border-border rounded-xl p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
-            <div>
-              <p className="font-semibold text-text1 text-sm">{team.name}</p>
-              {team.description && <p className="text-xs text-text2">{team.description}</p>}
-              {team.hs_team_id && <p className="text-xs text-text3">HS: {team.hs_team_id}</p>}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => setEditing(true)} className="text-xs text-blue px-2 py-1 rounded-lg bg-blue-light">
-              Rediger
-            </button>
-            <button onClick={onDelete} className="text-xs text-red px-2 py-1 rounded-lg bg-bg2">
-              Slet
-            </button>
+  const inputCls = 'w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green bg-bg';
+
+  if (!editing) return (
+    <div className="bg-bg border border-border rounded-xl p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
+          <div>
+            <p className="font-semibold text-text1 text-sm">{team.name}</p>
+            {team.description && <p className="text-xs text-text2">{team.description}</p>}
+            {team.hs_team_id && <p className="text-xs text-text3">HS: {team.hs_team_id}</p>}
           </div>
         </div>
+        <div className="flex gap-2">
+          <button onClick={() => setEditing(true)} className="text-xs text-blue px-2 py-1 rounded-lg bg-blue-light">Rediger</button>
+          <button onClick={onDelete} className="text-xs text-red px-2 py-1 rounded-lg bg-bg2">Slet</button>
+        </div>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
     <div className="bg-bg border border-green rounded-xl p-4 flex flex-col gap-3">
-      <input
-        value={name}
-        onChange={e => setName(e.target.value)}
-        placeholder="Navn"
-        className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
-      />
-      <input
-        value={description}
-        onChange={e => setDescription(e.target.value)}
-        placeholder="Beskrivelse (valgfri)"
-        className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
-      />
-      <input
-        value={hsId}
-        onChange={e => setHsId(e.target.value)}
-        placeholder="Holdsport ID (valgfri)"
-        className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
-      />
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="Navn" className={inputCls} />
+      <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Beskrivelse (valgfri)" className={inputCls} />
+      <input value={hsId} onChange={e => setHsId(e.target.value)} placeholder="Holdsport ID (valgfri)" className={inputCls} />
       <div>
         <p className="text-xs text-text2 mb-1.5">Farve</p>
         <div className="flex gap-2 flex-wrap">
           {COLORS.map(c => (
-            <button
-              key={c.value}
-              onClick={() => setColor(c.value)}
+            <button key={c.value} onClick={() => setColor(c.value)}
               className="w-7 h-7 rounded-full border-2 transition-all"
               style={{ backgroundColor: c.value, borderColor: color === c.value ? '#1a1a1a' : 'transparent' }}
-              title={c.label}
-            />
+              title={c.label} />
           ))}
         </div>
       </div>
       <div className="flex gap-2">
-        <button onClick={() => setEditing(false)} className="flex-1 border border-border rounded-lg py-2 text-sm text-text2">
-          Annuller
-        </button>
+        <button onClick={() => setEditing(false)} className="flex-1 border border-border rounded-lg py-2 text-sm text-text2">Annuller</button>
         <button onClick={save} disabled={saving} className="flex-1 bg-green text-white rounded-lg py-2 text-sm font-semibold disabled:opacity-50">
           {saving ? 'Gemmer…' : 'Gem'}
         </button>
