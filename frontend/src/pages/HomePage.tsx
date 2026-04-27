@@ -150,33 +150,39 @@ function NextGameCard({ game, team, onClick }: { game: Game; team?: Team; onClic
 
 function RecentResultRow({ game, team, onClick }: { game: Game; team?: Team; onClick: () => void }) {
   const d = new Date(game.date + 'T00:00:00');
+  const day    = d.toLocaleDateString('da-DK', { weekday: 'short' });
   const dayNum = d.getDate();
   const mon    = d.toLocaleDateString('da-DK', { month: 'short' });
   const isHome = game.is_home === 1;
-  const usWon  = game.result_us !== null && game.result_them !== null
-    ? game.result_us > game.result_them
-    : null;
+  const color  = team?.color;
+
+  const us = game.result_us, them = game.result_them;
+  const won = us !== null && them !== null ? us > them ? 'win' : us < them ? 'loss' : 'draw' : null;
+  const resultColor = won === 'win' ? 'text-green' : won === 'loss' ? 'text-red' : 'text-text3';
+  const resultLabel = won === 'win' ? 'Sejr' : won === 'loss' ? 'Nederlag' : 'Uafgjort';
 
   return (
     <button
       onClick={onClick}
-      className="w-full text-left bg-bg rounded-xl border border-border p-3 flex items-center gap-3 active:bg-bg2 transition-colors"
+      className="w-full text-left rounded-xl p-3 flex items-center gap-3 active:opacity-80 transition-opacity"
+      style={color ? { backgroundColor: color + '12', borderLeft: `3px solid ${color}` } : { backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)' }}
     >
       {/* Dato-blok */}
-      <div className="shrink-0 w-10 flex flex-col items-center">
-        <span className="text-base font-bold text-text1 leading-tight">{dayNum}</span>
-        <span className="text-[10px] text-text3">{mon}</span>
+      <div
+        className="shrink-0 w-11 flex flex-col items-center justify-center rounded-lg py-1.5"
+        style={color ? { backgroundColor: color + '22' } : { backgroundColor: 'var(--color-bg2)' }}
+      >
+        <span className="text-[10px] font-medium text-text3 uppercase">{day}</span>
+        <span className="text-lg font-bold text-text1 leading-tight">{dayNum}</span>
+        <span className="text-[10px] font-medium text-text3">{mon}</span>
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1 mb-0.5">
-          <span className="text-[11px] text-text3">{isHome ? 'Hjemme' : 'Ude'}</span>
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <span className="text-[11px] text-text3">{isHome ? 'Hjemme vs.' : 'Ude mod'}</span>
           {team && (
-            <span
-              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white"
-              style={{ backgroundColor: team.color }}
-            >
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: team.color }}>
               {team.name}
             </span>
           )}
@@ -184,20 +190,17 @@ function RecentResultRow({ game, team, onClick }: { game: Game; team?: Team; onC
         <div className="flex items-center gap-1.5">
           <p className="font-semibold text-text1 text-sm truncate">{game.opponent}</p>
           {game.has_double_booking === 1 && (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red shrink-0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red shrink-0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           )}
         </div>
       </div>
 
       {/* Resultat */}
-      {game.result_us !== null && (
-        <div className="shrink-0 flex flex-col items-end">
-          <span className={`text-base font-bold ${usWon ? 'text-green' : usWon === false ? 'text-red' : 'text-text1'}`}>
-            {game.result_us}–{game.result_them}
-          </span>
-          <span className={`text-[10px] font-medium ${usWon ? 'text-green' : usWon === false ? 'text-red' : 'text-text3'}`}>
-            {usWon ? 'Sejr' : usWon === false ? 'Nederlg' : 'Uafgjort'}
-          </span>
+      {us !== null && (
+        <div className="shrink-0 flex flex-col items-end gap-0.5">
+          <span className={`text-lg font-bold leading-tight ${resultColor}`}>{us}–{them}</span>
+          <span className={`text-[10px] font-semibold ${resultColor}`}>{resultLabel}</span>
+          {game.motm_player_id && <span className="text-[10px] text-text3">⭐ MOTM</span>}
         </div>
       )}
     </button>

@@ -128,7 +128,7 @@ export default function StatsPage() {
             <div className="flex justify-between text-xs">
               <span className="text-green font-semibold">{wins} sejr{wins !== 1 ? 'e' : ''}</span>
               <span className="text-text3">{draws} uafgjort</span>
-              <span className="text-red font-semibold">{losses} nederlg</span>
+              <span className="text-red font-semibold">{losses} nederlag</span>
             </div>
           </div>
 

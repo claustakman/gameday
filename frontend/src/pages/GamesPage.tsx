@@ -246,10 +246,15 @@ function GameRow({ game, team, onClick }: { game: Game; team?: Team; onClick: ()
       </div>
 
       {/* Højre: resultat eller badge */}
-      <div className="shrink-0 flex flex-col items-end gap-1">
+      <div className="shrink-0 flex flex-col items-end gap-0.5">
         {isDone && game.result_us !== null ? (
           <>
             <span className="text-lg font-bold text-text1 leading-tight">{game.result_us}–{game.result_them}</span>
+            {(() => {
+              const us = game.result_us, them = game.result_them!;
+              const [label, cls] = us > them ? ['Sejr', 'text-green'] : us < them ? ['Nederlag', 'text-red'] : ['Uafgjort', 'text-text3'];
+              return <span className={`text-[10px] font-semibold ${cls}`}>{label}</span>;
+            })()}
             {game.motm_player_id && <span className="text-[10px] text-text3">⭐ MOTM</span>}
           </>
         ) : (

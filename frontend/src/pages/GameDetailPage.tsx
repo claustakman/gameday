@@ -148,7 +148,7 @@ export default function GameDetailPage() {
                   {game.result_us}–{game.result_them}
                 </span>
                 <span className={`text-[11px] font-semibold ${usWon === 'win' ? 'text-green' : usWon === 'loss' ? 'text-red' : 'text-text3'}`}>
-                  {usWon === 'win' ? 'Sejr' : usWon === 'loss' ? 'Nederlg' : 'Uafgjort'}
+                  {usWon === 'win' ? 'Sejr' : usWon === 'loss' ? 'Nederlag' : 'Uafgjort'}
                 </span>
               </>
             ) : (
