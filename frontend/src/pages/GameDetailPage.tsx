@@ -240,10 +240,10 @@ export default function GameDetailPage() {
           </section>
         )}
 
-        {/* Fremmøde */}
+        {/* Hold */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <SectionTitle>Fremmøde {roster.filter(r => r.player_id).length > 0 && `(${roster.filter(r => r.player_id).length})`}</SectionTitle>
+            <SectionTitle>Hold {roster.filter(r => r.player_id).length > 0 && `(${roster.filter(r => r.player_id).length})`}</SectionTitle>
             <button
               onClick={() => setShowRoster(true)}
               className="flex items-center gap-1 text-xs font-semibold text-green"
@@ -276,9 +276,12 @@ export default function GameDetailPage() {
                     key={entry.id}
                     className={`bg-bg rounded-xl border flex items-center gap-3 px-3 py-2.5 ${isDoubleBooked ? 'border-red/40' : 'border-border'}`}
                   >
-                    {/* Avatar */}
-                    <div className="w-8 h-8 rounded-full bg-bg2 flex items-center justify-center shrink-0">
-                      <span className="text-xs font-bold text-text2">
+                    {/* Avatar — holdfarvet som i Trup */}
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: color, color: '#fff' }}
+                    >
+                      <span className="text-xs font-bold">
                         {entry.shirt_number != null ? entry.shirt_number : initials(entry.player_name ?? '')}
                       </span>
                     </div>

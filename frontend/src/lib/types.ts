@@ -33,6 +33,7 @@ export interface Game {
   went_bad: string | null;
   motm_player_id: string | null;
   hs_activity_id: string | null;
+  has_double_booking?: number;
 }
 
 export interface Player {

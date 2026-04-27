@@ -9,7 +9,18 @@ gameRoutes.get('/', async (c) => {
   const { team_id, season, status, opponent } = c.req.query();
 
   let sql = `
-    SELECT g.*, t.org_id FROM games g
+    SELECT g.*, t.org_id,
+      CASE WHEN EXISTS (
+        SELECT 1 FROM game_roster gr
+        JOIN game_roster gr2 ON gr2.player_id = gr.player_id AND gr2.game_id != g.id
+        JOIN games g2 ON g2.id = gr2.game_id
+        JOIN teams t2 ON t2.id = g2.team_id
+        WHERE gr.game_id = g.id
+          AND gr.player_id IS NOT NULL
+          AND g2.date = g.date
+          AND t2.org_id = t.org_id
+      ) THEN 1 ELSE 0 END AS has_double_booking
+    FROM games g
     JOIN teams t ON t.id = g.team_id
     WHERE t.org_id = ?
   `;
