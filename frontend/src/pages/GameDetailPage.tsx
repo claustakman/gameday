@@ -194,7 +194,7 @@ export default function GameDetailPage() {
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-text1 text-base leading-snug">{f.focus}</p>
-                        {f.goal && <p className="text-sm text-text2 mt-0.5">{f.goal}</p>}
+                        {f.goal && <p className="text-sm text-text2 mt-0.5"><span className="font-medium">Mål:</span> {f.goal}</p>}
                       </div>
                     </div>
 
