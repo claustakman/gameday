@@ -70,7 +70,7 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="px-4 pt-6 pb-6">
+    <div className="px-4 pt-6" style={{ paddingBottom: 'calc(1.5rem + 3.5rem + env(safe-area-inset-bottom))' }}>
       <h2 className="text-xl font-bold text-text1 mb-4">Stats</h2>
 
       {/* Chip-filtre */}

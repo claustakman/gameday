@@ -181,7 +181,7 @@ export default function SettingsPage() {
   const inputCls = 'w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green bg-bg';
 
   return (
-    <div className="px-4 pt-6 pb-8">
+    <div className="px-4 pt-6" style={{ paddingBottom: 'calc(2rem + 3.5rem + env(safe-area-inset-bottom))' }}>
       <h2 className="text-xl font-bold text-text1 mb-6">Indstillinger</h2>
 
       {/* ── Hold ───────────────────────────────────────────────────── */}
