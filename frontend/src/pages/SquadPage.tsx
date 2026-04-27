@@ -1,35 +1,69 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import type { Player } from '../lib/types';
+import type { Player, Team } from '../lib/types';
+
+type SortKey = 'number' | 'name' | 'birth_year';
 
 export default function SquadPage() {
   const [players,  setPlayers]  = useState<Player[]>([]);
+  const [teams,    setTeams]    = useState<Team[]>([]);
   const [loading,  setLoading]  = useState(true);
 
   const [showInactive, setShowInactive] = useState(false);
   const [yearFilter,   setYearFilter]   = useState('');
+  const [sortKey,      setSortKey]      = useState<SortKey>('number');
   const [showAdd,      setShowAdd]      = useState(false);
 
   useEffect(() => {
-    api.get<Player[]>('/players')
-      .then(setPlayers)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get<Player[]>('/players').catch(() => [] as Player[]),
+      api.get<Team[]>('/teams').catch(() => [] as Team[]),
+    ]).then(([p, t]) => {
+      setPlayers(p);
+      setTeams(t);
+    }).finally(() => setLoading(false));
   }, []);
 
-  // Unikke årgange til filter-chips
+  // Unikke årgange fra aktive spillere (obligatorisk felt)
   const years = Array.from(
-    new Set(players.map(p => p.birth_year).filter(Boolean) as number[])
+    new Set(players.filter(p => p.birth_year).map(p => p.birth_year) as number[])
   ).sort();
 
-  const visible = players.filter(p => {
+  // Teammap til farve-opslag
+  const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
+
+  function sorted(list: Player[]): Player[] {
+    return [...list].sort((a, b) => {
+      if (sortKey === 'number') {
+        // Spillere uden nummer sorteres sidst
+        if (a.shirt_number == null && b.shirt_number == null) return a.full_name.localeCompare(b.full_name);
+        if (a.shirt_number == null) return 1;
+        if (b.shirt_number == null) return -1;
+        return a.shirt_number - b.shirt_number;
+      }
+      if (sortKey === 'name') {
+        const an = a.nickname ?? a.full_name;
+        const bn = b.nickname ?? b.full_name;
+        return an.localeCompare(bn);
+      }
+      if (sortKey === 'birth_year') {
+        if (a.birth_year == null && b.birth_year == null) return 0;
+        if (a.birth_year == null) return 1;
+        if (b.birth_year == null) return -1;
+        return a.birth_year - b.birth_year;
+      }
+      return 0;
+    });
+  }
+
+  const filtered = players.filter(p => {
     if (!showInactive && p.active === 0) return false;
     if (yearFilter && String(p.birth_year) !== yearFilter) return false;
     return true;
   });
 
-  const active   = visible.filter(p => p.active === 1);
-  const inactive = visible.filter(p => p.active === 0);
+  const active   = sorted(filtered.filter(p => p.active === 1));
+  const inactive = sorted(filtered.filter(p => p.active === 0));
 
   function onUpdated(updated: Player) {
     setPlayers(ps => ps.map(p => p.id === updated.id ? updated : p));
@@ -48,6 +82,12 @@ export default function SquadPage() {
     );
   }
 
+  const sortOptions: { key: SortKey; label: string }[] = [
+    { key: 'number',     label: 'Nummer' },
+    { key: 'name',       label: 'Navn' },
+    { key: 'birth_year', label: 'Årgang' },
+  ];
+
   return (
     <div className="flex flex-col min-h-full">
       {/* Header */}
@@ -65,9 +105,9 @@ export default function SquadPage() {
           </button>
         </div>
 
-        {/* Årgangfilter */}
+        {/* Årgangfilter — samme stil som Kampe */}
         {years.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
             <ChipButton active={yearFilter === ''} onClick={() => setYearFilter('')}>Alle</ChipButton>
             {years.map(y => (
               <ChipButton
@@ -80,6 +120,19 @@ export default function SquadPage() {
             ))}
           </div>
         )}
+
+        {/* Sortering */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+          {sortOptions.map(opt => (
+            <ChipButton
+              key={opt.key}
+              active={sortKey === opt.key}
+              onClick={() => setSortKey(opt.key)}
+            >
+              {opt.label}
+            </ChipButton>
+          ))}
+        </div>
       </div>
 
       {/* Liste */}
@@ -91,7 +144,7 @@ export default function SquadPage() {
         )}
 
         {active.map(p => (
-          <PlayerRow key={p.id} player={p} onUpdated={onUpdated} />
+          <PlayerRow key={p.id} player={p} teamMap={teamMap} teams={teams} onUpdated={onUpdated} />
         ))}
 
         {inactive.length > 0 && (
@@ -107,12 +160,13 @@ export default function SquadPage() {
         )}
 
         {showInactive && inactive.map(p => (
-          <PlayerRow key={p.id} player={p} onUpdated={onUpdated} />
+          <PlayerRow key={p.id} player={p} teamMap={teamMap} teams={teams} onUpdated={onUpdated} />
         ))}
       </div>
 
       {showAdd && (
         <AddPlayerSheet
+          teams={teams}
           onClose={() => setShowAdd(false)}
           onAdded={onAdded}
         />
@@ -122,11 +176,16 @@ export default function SquadPage() {
 }
 
 /* ─── PlayerRow ──────────────────────────────────────────────────── */
-function PlayerRow({ player, onUpdated }: {
+function PlayerRow({ player, teamMap, teams, onUpdated }: {
   player: Player;
+  teamMap: Record<string, Team>;
+  teams: Team[];
   onUpdated: (p: Player) => void;
 }) {
   const [showEdit, setShowEdit] = useState(false);
+
+  const primaryTeam = player.primary_team_id ? teamMap[player.primary_team_id] : null;
+  const avatarColor = primaryTeam?.color ?? null;
 
   const displayName = player.nickname
     ? `${player.nickname} (${player.full_name})`
@@ -138,12 +197,17 @@ function PlayerRow({ player, onUpdated }: {
         onClick={() => setShowEdit(true)}
         className={`w-full text-left bg-bg rounded-xl border border-border px-4 py-3 flex items-center gap-3 active:bg-bg2 transition-colors ${player.active === 0 ? 'opacity-50' : ''}`}
       >
-        {/* Nummer / Avatar */}
-        <div className="w-9 h-9 rounded-full bg-bg2 flex items-center justify-center shrink-0">
-          {player.shirt_number != null
-            ? <span className="text-sm font-bold text-text2">{player.shirt_number}</span>
-            : <span className="text-sm font-bold text-text2">{initials(player.full_name)}</span>
+        {/* Avatar */}
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+          style={avatarColor
+            ? { backgroundColor: avatarColor, color: '#fff' }
+            : { backgroundColor: 'var(--color-bg2)', color: 'var(--color-text2)' }
           }
+        >
+          <span className="text-sm font-bold">
+            {player.shirt_number != null ? player.shirt_number : initials(player.full_name)}
+          </span>
         </div>
 
         <div className="flex-1 min-w-0">
@@ -151,6 +215,14 @@ function PlayerRow({ player, onUpdated }: {
           <div className="flex items-center gap-2 mt-0.5">
             {player.birth_year && (
               <span className="text-xs text-text3">{player.birth_year}</span>
+            )}
+            {primaryTeam && (
+              <span
+                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                style={{ backgroundColor: primaryTeam.color + '22', color: primaryTeam.color }}
+              >
+                {primaryTeam.name}
+              </span>
             )}
             {player.is_default_keeper === 1 && (
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-bg2 text-text2">Keeper</span>
@@ -169,6 +241,8 @@ function PlayerRow({ player, onUpdated }: {
       {showEdit && (
         <EditPlayerSheet
           player={player}
+          teams={teams}
+          teamMap={teamMap}
           onClose={() => setShowEdit(false)}
           onSaved={updated => { onUpdated(updated); setShowEdit(false); }}
         />
@@ -178,36 +252,41 @@ function PlayerRow({ player, onUpdated }: {
 }
 
 /* ─── AddPlayerSheet ─────────────────────────────────────────────── */
-function AddPlayerSheet({ onClose, onAdded }: {
+function AddPlayerSheet({ teams, onClose, onAdded }: {
+  teams: Team[];
   onClose: () => void;
   onAdded: (p: Player) => void;
 }) {
-  const [fullName,     setFullName]     = useState('');
-  const [nickname,     setNickname]     = useState('');
-  const [birthYear,    setBirthYear]    = useState('');
-  const [shirtNumber,  setShirtNumber]  = useState('');
-  const [isKeeper,     setIsKeeper]     = useState(false);
-  const [saving,       setSaving]       = useState(false);
-  const [error,        setError]        = useState('');
+  const [fullName,       setFullName]       = useState('');
+  const [nickname,       setNickname]       = useState('');
+  const [birthYear,      setBirthYear]      = useState('');
+  const [shirtNumber,    setShirtNumber]    = useState('');
+  const [primaryTeamId,  setPrimaryTeamId]  = useState('');
+  const [isKeeper,       setIsKeeper]       = useState(false);
+  const [saving,         setSaving]         = useState(false);
+  const [error,          setError]          = useState('');
 
   async function save() {
     if (!fullName.trim()) { setError('Navn er påkrævet'); return; }
+    if (!birthYear)       { setError('Årgang er påkrævet'); return; }
     setError(''); setSaving(true);
     try {
       const { id } = await api.post<{ id: string }>('/players', {
-        full_name:         fullName.trim(),
-        nickname:          nickname.trim() || null,
-        birth_year:        birthYear   ? parseInt(birthYear)   : null,
-        shirt_number:      shirtNumber ? parseInt(shirtNumber) : null,
+        full_name:        fullName.trim(),
+        nickname:         nickname.trim() || null,
+        birth_year:       parseInt(birthYear),
+        shirt_number:     shirtNumber ? parseInt(shirtNumber) : null,
+        primary_team_id:  primaryTeamId || null,
         is_default_keeper: isKeeper,
       });
 
       onAdded({
         id, org_id: '',
-        full_name:         fullName.trim(),
-        nickname:          nickname.trim() || null,
-        birth_year:        birthYear   ? parseInt(birthYear)   : null,
-        shirt_number:      shirtNumber ? parseInt(shirtNumber) : null,
+        full_name:        fullName.trim(),
+        nickname:         nickname.trim() || null,
+        birth_year:       parseInt(birthYear),
+        shirt_number:     shirtNumber ? parseInt(shirtNumber) : null,
+        primary_team_id:  primaryTeamId || null,
         is_default_keeper: isKeeper ? 1 : 0,
         hs_user_id: null, active: 1,
       });
@@ -225,11 +304,13 @@ function AddPlayerSheet({ onClose, onAdded }: {
         nickname={nickname} setNickname={setNickname}
         birthYear={birthYear} setBirthYear={setBirthYear}
         shirtNumber={shirtNumber} setShirtNumber={setShirtNumber}
+        primaryTeamId={primaryTeamId} setPrimaryTeamId={setPrimaryTeamId}
         isKeeper={isKeeper} setIsKeeper={setIsKeeper}
+        teams={teams}
         error={error}
       />
       <div className="pt-4 border-t border-border mt-2">
-        <button onClick={save} disabled={saving || !fullName.trim()}
+        <button onClick={save} disabled={saving || !fullName.trim() || !birthYear}
           className="w-full bg-green text-white rounded-xl py-3.5 font-semibold text-sm disabled:opacity-50">
           {saving ? 'Gemmer…' : 'Opret spiller'}
         </button>
@@ -239,37 +320,44 @@ function AddPlayerSheet({ onClose, onAdded }: {
 }
 
 /* ─── EditPlayerSheet ────────────────────────────────────────────── */
-function EditPlayerSheet({ player, onClose, onSaved }: {
+function EditPlayerSheet({ player, teams, onClose, onSaved }: {
   player: Player;
+  teams: Team[];
+  teamMap: Record<string, Team>;
   onClose: () => void;
   onSaved: (p: Player) => void;
 }) {
-  const [fullName,    setFullName]    = useState(player.full_name);
-  const [nickname,    setNickname]    = useState(player.nickname ?? '');
-  const [birthYear,   setBirthYear]   = useState(player.birth_year   ? String(player.birth_year)   : '');
-  const [shirtNumber, setShirtNumber] = useState(player.shirt_number != null ? String(player.shirt_number) : '');
-  const [isKeeper,    setIsKeeper]    = useState(player.is_default_keeper === 1);
-  const [saving,      setSaving]      = useState(false);
-  const [error,       setError]       = useState('');
+
+  const [fullName,      setFullName]      = useState(player.full_name);
+  const [nickname,      setNickname]      = useState(player.nickname ?? '');
+  const [birthYear,     setBirthYear]     = useState(player.birth_year ? String(player.birth_year) : '');
+  const [shirtNumber,   setShirtNumber]   = useState(player.shirt_number != null ? String(player.shirt_number) : '');
+  const [primaryTeamId, setPrimaryTeamId] = useState(player.primary_team_id ?? '');
+  const [isKeeper,      setIsKeeper]      = useState(player.is_default_keeper === 1);
+  const [saving,        setSaving]        = useState(false);
+  const [error,         setError]         = useState('');
 
   async function save() {
     if (!fullName.trim()) { setError('Navn er påkrævet'); return; }
+    if (!birthYear)       { setError('Årgang er påkrævet'); return; }
     setError(''); setSaving(true);
     try {
       await api.patch(`/players/${player.id}`, {
-        full_name:         fullName.trim(),
-        nickname:          nickname.trim() || null,
-        birth_year:        birthYear   ? parseInt(birthYear)   : null,
-        shirt_number:      shirtNumber ? parseInt(shirtNumber) : null,
+        full_name:        fullName.trim(),
+        nickname:         nickname.trim() || null,
+        birth_year:       parseInt(birthYear),
+        shirt_number:     shirtNumber ? parseInt(shirtNumber) : null,
+        primary_team_id:  primaryTeamId || null,
         is_default_keeper: isKeeper ? 1 : 0,
       });
 
       onSaved({
         ...player,
-        full_name:         fullName.trim(),
-        nickname:          nickname.trim() || null,
-        birth_year:        birthYear   ? parseInt(birthYear)   : null,
-        shirt_number:      shirtNumber ? parseInt(shirtNumber) : null,
+        full_name:        fullName.trim(),
+        nickname:         nickname.trim() || null,
+        birth_year:       parseInt(birthYear),
+        shirt_number:     shirtNumber ? parseInt(shirtNumber) : null,
+        primary_team_id:  primaryTeamId || null,
         is_default_keeper: isKeeper ? 1 : 0,
       });
     } catch (e) {
@@ -292,7 +380,9 @@ function EditPlayerSheet({ player, onClose, onSaved }: {
         nickname={nickname} setNickname={setNickname}
         birthYear={birthYear} setBirthYear={setBirthYear}
         shirtNumber={shirtNumber} setShirtNumber={setShirtNumber}
+        primaryTeamId={primaryTeamId} setPrimaryTeamId={setPrimaryTeamId}
         isKeeper={isKeeper} setIsKeeper={setIsKeeper}
+        teams={teams}
         error={error}
       />
       <div className="pt-4 border-t border-border mt-2 flex flex-col gap-2">
@@ -302,9 +392,7 @@ function EditPlayerSheet({ player, onClose, onSaved }: {
         </button>
         <button onClick={toggleActive}
           className={`w-full border rounded-xl py-3 font-semibold text-sm ${
-            player.active === 1
-              ? 'border-border text-text2'
-              : 'border-green text-green'
+            player.active === 1 ? 'border-border text-text2' : 'border-green text-green'
           }`}>
           {player.active === 1 ? 'Sæt inaktiv' : 'Sæt aktiv'}
         </button>
@@ -317,16 +405,24 @@ function EditPlayerSheet({ player, onClose, onSaved }: {
 function PlayerForm({
   fullName, setFullName, nickname, setNickname,
   birthYear, setBirthYear, shirtNumber, setShirtNumber,
-  isKeeper, setIsKeeper, error,
+  primaryTeamId, setPrimaryTeamId,
+  isKeeper, setIsKeeper, teams, error,
 }: {
   fullName: string; setFullName: (v: string) => void;
   nickname: string; setNickname: (v: string) => void;
   birthYear: string; setBirthYear: (v: string) => void;
   shirtNumber: string; setShirtNumber: (v: string) => void;
+  primaryTeamId: string; setPrimaryTeamId: (v: string) => void;
   isKeeper: boolean; setIsKeeper: (v: boolean) => void;
+  teams: Team[];
   error: string;
 }) {
   const inputCls = 'w-full border border-border rounded-lg px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg';
+
+  // Vis kun hold fra aktuel sæson
+  const y = new Date().getFullYear();
+  const currentSeason = `${y}/${String(y + 1).slice(2)}`;
+  const seasonTeams = teams.filter(t => t.season === currentSeason);
 
   return (
     <div className="flex flex-col gap-4">
@@ -341,7 +437,7 @@ function PlayerForm({
 
       <div className="flex gap-3">
         <div className="flex-1">
-          <label className="block text-xs font-medium text-text2 mb-1.5">Fødselsår (valgfri)</label>
+          <label className="block text-xs font-medium text-text2 mb-1.5">Fødselsår <span className="text-red">*</span></label>
           <input
             type="number" value={birthYear} onChange={e => setBirthYear(e.target.value)}
             placeholder="fx 2013" min="1990" max="2020"
@@ -357,6 +453,40 @@ function PlayerForm({
           />
         </div>
       </div>
+
+      {/* Primært hold */}
+      {seasonTeams.length > 0 && (
+        <div>
+          <label className="block text-xs font-medium text-text2 mb-1.5">Primært hold (valgfri)</label>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setPrimaryTeamId('')}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-colors ${
+                primaryTeamId === '' ? 'border-border bg-bg2 text-text2' : 'border-transparent bg-bg2 text-text3'
+              }`}
+            >
+              Ingen
+            </button>
+            {seasonTeams.map(t => (
+              <button
+                type="button"
+                key={t.id}
+                onClick={() => setPrimaryTeamId(primaryTeamId === t.id ? '' : t.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-colors"
+                style={{
+                  borderColor:     primaryTeamId === t.id ? t.color : 'transparent',
+                  backgroundColor: primaryTeamId === t.id ? t.color + '22' : '#f5f5f5',
+                  color:           primaryTeamId === t.id ? t.color : '#666',
+                }}
+              >
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
+                {t.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Keeper toggle */}
       <button

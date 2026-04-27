@@ -42,6 +42,7 @@ export interface Player {
   nickname: string | null;
   birth_year: number | null;
   shirt_number: number | null;
+  primary_team_id: string | null;
   is_default_keeper: number;
   hs_user_id: string | null;
   active: number;
