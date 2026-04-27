@@ -366,6 +366,7 @@ export default function GameDetailPage() {
         <AddToRosterSheet
           allPlayers={allPlayers}
           rosterPlayerIds={roster.filter(r => r.player_id).map(r => r.player_id!)}
+          color={color}
           onAdd={async (pid) => { await addToRoster(pid); }}
           onClose={() => setShowRoster(false)}
         />
@@ -666,9 +667,10 @@ function BottomSheet({ title, children, onClose, scrollable = false }: {
 }
 
 /* ─── Add to roster sheet ─────────────────────────────────────────── */
-function AddToRosterSheet({ allPlayers, rosterPlayerIds, onAdd, onClose }: {
+function AddToRosterSheet({ allPlayers, rosterPlayerIds, color, onAdd, onClose }: {
   allPlayers: Player[];
   rosterPlayerIds: string[];
+  color: string;
   onAdd: (playerId: string) => Promise<void>;
   onClose: () => void;
 }) {
@@ -729,8 +731,8 @@ function AddToRosterSheet({ allPlayers, rosterPlayerIds, onAdd, onClose }: {
               disabled={adding === p.id}
               className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl active:bg-bg2 transition-colors disabled:opacity-50"
             >
-              <div className="w-8 h-8 rounded-full bg-bg2 flex items-center justify-center shrink-0">
-                <span className="text-xs font-bold text-text2">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: color, color: '#fff' }}>
+                <span className="text-xs font-bold">
                   {p.shirt_number != null ? p.shirt_number : initials(p.full_name)}
                 </span>
               </div>
