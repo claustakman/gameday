@@ -359,6 +359,7 @@ export default function GameDetailPage() {
           color={color}
           onClose={() => setShowEdit(false)}
           onSaved={updated => { setGame(updated); setShowEdit(false); }}
+          onDeleted={() => navigate('/games')}
         />
       )}
 
@@ -512,12 +513,13 @@ function ResultSheet({ game, color, roster, onClose, onSaved }: {
 /* ─── Edit sheet ──────────────────────────────────────────────────── */
 const EMPTY_FOCUS = { focus: '', goal: '' };
 
-function EditSheet({ game, teams, color, onClose, onSaved }: {
+function EditSheet({ game, teams, color, onClose, onSaved, onDeleted }: {
   game: Game;
   teams: Team[];
   color: string;
   onClose: () => void;
   onSaved: (g: Game) => void;
+  onDeleted: () => void;
 }) {
   const [date,       setDate]       = useState(game.date);
   const [time,       setTime]       = useState(game.time ?? '');
@@ -526,6 +528,8 @@ function EditSheet({ game, teams, color, onClose, onSaved }: {
   const [location,   setLocation]   = useState(game.location ?? '');
   const [isHome,     setIsHome]     = useState(game.is_home === 1);
   const [teamId,     setTeamId]     = useState(game.team_id);
+  const [deleting,   setDeleting]   = useState(false);
+  const [confirms,   setConfirms]   = useState(false);
   const [focuses, setFocuses] = useState<{ focus: string; goal: string }[]>(() => {
     const raw = [
       { focus: game.focus_1 ?? '', goal: game.goal_1 ?? '' },
@@ -679,15 +683,53 @@ function EditSheet({ game, teams, color, onClose, onSaved }: {
         {error && <p className="text-red text-sm">{error}</p>}
       </div>
 
-      <div className="pt-4 border-t border-border mt-2">
+      <div className="pt-4 border-t border-border mt-2 flex flex-col gap-2">
         <button
           onClick={save}
-          disabled={saving}
+          disabled={saving || deleting}
           className="w-full rounded-xl py-3.5 font-semibold text-sm text-white disabled:opacity-50"
           style={{ backgroundColor: color }}
         >
           {saving ? 'Gemmer…' : 'Gem ændringer'}
         </button>
+
+        {/* Slet kamp — to-trins bekræftelse */}
+        {!confirms ? (
+          <button
+            onClick={() => setConfirms(true)}
+            disabled={saving || deleting}
+            className="w-full rounded-xl py-3 font-semibold text-sm text-red bg-bg2 disabled:opacity-50"
+          >
+            Slet kamp
+          </button>
+        ) : (
+          <div className="bg-bg rounded-xl border border-red/30 p-3 flex flex-col gap-2">
+            <p className="text-xs text-center text-text2">Slet kampen og al tilknyttet statistik?</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirms(false)}
+                className="flex-1 border border-border rounded-lg py-2 text-sm text-text2"
+              >
+                Annuller
+              </button>
+              <button
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    await api.delete(`/games/${game.id}`);
+                    onDeleted();
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+                disabled={deleting}
+                className="flex-1 bg-red rounded-lg py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {deleting ? 'Sletter…' : 'Ja, slet'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </BottomSheet>
   );
