@@ -180,41 +180,44 @@ export default function GameDetailPage() {
           <section>
             <SectionTitle>Fokuspunkter</SectionTitle>
             <div className="flex flex-col gap-3">
-              {focuses.map((f, i) => (
-                <div key={i} className="bg-bg rounded-xl border border-border p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span
-                          className="text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center text-white shrink-0"
-                          style={{ backgroundColor: color }}
-                        >
-                          {i + 1}
-                        </span>
-                        <p className="font-semibold text-text1 text-sm">{f.focus}</p>
+              {focuses.map((f, i) => {
+                const hasGoal = !!f.goal;
+                return (
+                  <div key={i} className="bg-bg rounded-xl border border-border p-4 flex flex-col gap-3">
+                    {/* Fokuspunkt-tekst */}
+                    <div className="flex items-start gap-2">
+                      <span
+                        className="text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center text-white shrink-0 mt-0.5"
+                        style={{ backgroundColor: color }}
+                      >
+                        {i + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-text1 text-base leading-snug">{f.focus}</p>
+                        {f.goal && <p className="text-sm text-text2 mt-0.5">{f.goal}</p>}
                       </div>
-                      {f.goal && <p className="text-xs text-text2 ml-7">{f.goal}</p>}
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    {/* Tæller-række */}
+                    <div className={`flex items-center justify-between gap-3 pt-1 ${!hasGoal ? 'opacity-10 pointer-events-none' : ''}`}>
                       <button
                         onClick={() => incTally(f.field, -1)}
-                        className="w-8 h-8 rounded-full bg-bg2 flex items-center justify-center text-text2 text-lg font-bold active:bg-border"
+                        className="w-12 h-12 rounded-full bg-bg2 flex items-center justify-center text-text2 text-2xl font-bold active:bg-border"
                       >
                         −
                       </button>
-                      <span className="text-lg font-bold text-text1 w-6 text-center">{f.tally}</span>
+                      <span className="text-4xl font-black text-text1 tabular-nums">{f.tally}</span>
                       <button
                         onClick={() => incTally(f.field, 1)}
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-lg font-bold active:opacity-80"
+                        className="w-12 h-12 rounded-full flex items-center justify-center text-white text-2xl font-bold active:opacity-80"
                         style={{ backgroundColor: color }}
                       >
                         +
                       </button>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}
