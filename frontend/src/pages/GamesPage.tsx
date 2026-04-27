@@ -191,13 +191,19 @@ function GameRow({ game, team, onClick }: { game: Game; team?: Team; onClick: ()
   const isHome = game.is_home === 1;
   const isDone = game.status === 'done';
 
+  const color = team?.color;
+
   return (
     <button
       onClick={onClick}
-      className="w-full text-left bg-bg rounded-xl border border-border p-3 flex items-center gap-3 active:bg-bg2 transition-colors"
+      className="w-full text-left rounded-xl p-3 flex items-center gap-3 active:opacity-80 transition-opacity"
+      style={color ? { backgroundColor: color + '12', borderLeft: `3px solid ${color}` } : { backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)' }}
     >
       {/* Dato-blok */}
-      <div className="shrink-0 w-11 flex flex-col items-center justify-center bg-bg2 rounded-lg py-1.5">
+      <div
+        className="shrink-0 w-11 flex flex-col items-center justify-center rounded-lg py-1.5"
+        style={color ? { backgroundColor: color + '22' } : { backgroundColor: 'var(--color-bg2)' }}
+      >
         <span className="text-[10px] font-medium text-text3 uppercase">{day}</span>
         <span className="text-lg font-bold text-text1 leading-tight">{dayNum}</span>
         <span className="text-[10px] font-medium text-text3">{mon}</span>
