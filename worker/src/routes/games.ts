@@ -67,7 +67,7 @@ gameRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json<Record<string, unknown>>();
 
-  const allowed = ['date','time','meetup_time','opponent','location','is_home','status',
+  const allowed = ['team_id','date','time','meetup_time','opponent','location','is_home','status',
     'result_us','result_them','focus_1','focus_2','focus_3','goal_1','goal_2','goal_3',
     'went_well','went_bad','motm_player_id'];
 

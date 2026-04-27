@@ -7,28 +7,20 @@ export default function GameDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [game,    setGame]    = useState<Game | null>(null);
-  const [team,    setTeam]    = useState<Team | null>(null);
+  const [teams,   setTeams]   = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
 
-  // Finish game sheet
-  const [showFinish, setShowFinish] = useState(false);
-  const [resultUs,   setResultUs]   = useState('');
-  const [resultThem, setResultThem] = useState('');
-  const [wentWell,   setWentWell]   = useState('');
-  const [wentBad,    setWentBad]    = useState('');
-  const [saving,     setSaving]     = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [showEdit,   setShowEdit]   = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    api.get<Game>(`/games/${id}`)
-      .then(g => {
-        setGame(g);
-        return api.get<Team[]>('/teams').then(ts => {
-          const t = ts.find(x => x.id === g.team_id);
-          setTeam(t ?? null);
-        });
-      })
+    Promise.all([
+      api.get<Game>(`/games/${id}`),
+      api.get<Team[]>('/teams'),
+    ])
+      .then(([g, ts]) => { setGame(g); setTeams(ts); })
       .catch(() => setError('Kunne ikke hente kamp'))
       .finally(() => setLoading(false));
   }, [id]);
@@ -37,26 +29,6 @@ export default function GameDetailPage() {
     if (!game || !id) return;
     await api.patch(`/games/${id}/tally`, { field, delta });
     setGame(g => g ? { ...g, [field]: Math.max(0, (g[field] ?? 0) + delta) } : g);
-  }
-
-  async function finishGame() {
-    if (!id) return;
-    const us = parseInt(resultUs);
-    const them = parseInt(resultThem);
-    if (isNaN(us) || isNaN(them)) return;
-    setSaving(true);
-    try {
-      await api.post(`/games/${id}/finish`, {
-        result_us: us,
-        result_them: them,
-        went_well: wentWell.trim() || null,
-        went_bad:  wentBad.trim()  || null,
-      });
-      setGame(g => g ? { ...g, status: 'done', result_us: us, result_them: them, went_well: wentWell.trim() || null, went_bad: wentBad.trim() || null } : g);
-      setShowFinish(false);
-    } finally {
-      setSaving(false);
-    }
   }
 
   if (loading) {
@@ -70,20 +42,21 @@ export default function GameDetailPage() {
   if (error || !game) {
     return (
       <div className="px-4 pt-6">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-text3 text-sm mb-4">
+        <button onClick={() => navigate('/games')} className="flex items-center gap-1 text-text3 text-sm mb-4">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
-          Tilbage
+          Kampe
         </button>
         <p className="text-red text-sm">{error || 'Kamp ikke fundet'}</p>
       </div>
     );
   }
 
-  const d = new Date(game.date + 'T00:00:00');
-  const dateStr = d.toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' });
-  const isHome = game.is_home === 1;
-  const isDone = game.status === 'done';
+  const team   = teams.find(t => t.id === game.team_id) ?? null;
   const color  = team?.color ?? '#1D9E75';
+  const d      = new Date(game.date + 'T00:00:00');
+  const dateStr = d.toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' });
+  const isHome  = game.is_home === 1;
+  const isDone  = game.status === 'done';
 
   const focuses = [
     { focus: game.focus_1, goal: game.goal_1, tally: game.tally_1, field: 'tally_1' as const },
@@ -91,50 +64,75 @@ export default function GameDetailPage() {
     { focus: game.focus_3, goal: game.goal_3, tally: game.tally_3, field: 'tally_3' as const },
   ].filter(f => f.focus);
 
+  const usWon = game.result_us !== null && game.result_them !== null
+    ? game.result_us > game.result_them ? 'win' : game.result_us < game.result_them ? 'loss' : 'draw'
+    : null;
+
   return (
     <div className="flex flex-col min-h-full">
       {/* Header */}
       <div className="px-4 pt-5 pb-4 bg-bg border-b border-border">
-        <button onClick={() => navigate('/games')} className="flex items-center gap-1 text-text3 text-sm mb-4">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
-          Kampe
-        </button>
+        {/* Top bar */}
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={() => navigate('/games')} className="flex items-center gap-1 text-text3 text-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+            Kampe
+          </button>
+          <button
+            onClick={() => setShowEdit(true)}
+            className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-bg2 text-text2"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Rediger
+          </button>
+        </div>
 
-        <div className="flex items-start justify-between">
-          <div>
+        {/* Opponent + result */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs text-text3">{isHome ? 'Hjemme vs.' : 'Ude mod'}</span>
               {team && (
-                <span
-                  className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white"
-                  style={{ backgroundColor: color }}
-                >
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: color }}>
                   {team.name}
                 </span>
               )}
             </div>
-            <h1 className="text-2xl font-bold text-text1">{game.opponent}</h1>
+            <h1 className="text-2xl font-bold text-text1 leading-tight">{game.opponent}</h1>
           </div>
 
-          {isDone && game.result_us !== null && (
-            <div className="text-right">
-              <span className="text-3xl font-black text-text1">{game.result_us}–{game.result_them}</span>
-              <p className="text-xs text-text3 mt-0.5">
-                {game.result_us > game.result_them! ? 'Sejr' : game.result_us < game.result_them! ? 'Nederlg' : 'Uafgjort'}
-              </p>
-            </div>
-          )}
+          {/* Resultat — klikbart for at åbne result-sheet */}
+          <button
+            onClick={() => setShowResult(true)}
+            className="shrink-0 text-right rounded-xl px-3 py-2 active:opacity-70 transition-opacity"
+            style={{ backgroundColor: color + '15' }}
+          >
+            {game.result_us !== null ? (
+              <>
+                <span className="text-3xl font-black text-text1 block leading-tight">
+                  {game.result_us}–{game.result_them}
+                </span>
+                <span className={`text-[11px] font-semibold ${usWon === 'win' ? 'text-green' : usWon === 'loss' ? 'text-red' : 'text-text3'}`}>
+                  {usWon === 'win' ? 'Sejr' : usWon === 'loss' ? 'Nederlg' : 'Uafgjort'}
+                </span>
+              </>
+            ) : (
+              <span className="text-xs font-semibold text-text3 flex items-center gap-1">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Resultat
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Meta */}
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
           <MetaItem icon="📅">{capitalize(dateStr)}</MetaItem>
-          {game.time && <MetaItem icon="⏰">{game.time}{game.meetup_time ? ` (møder ${game.meetup_time})` : ''}</MetaItem>}
+          {game.time && <MetaItem icon="⏰">{game.time}{game.meetup_time ? ` · mødes ${game.meetup_time}` : ''}</MetaItem>}
           {game.location && <MetaItem icon="📍">{game.location}</MetaItem>}
         </div>
 
-        {/* Status badge */}
-        <div className="mt-3">
+        <div className="mt-3 flex items-center gap-2">
           <StatusBadge status={game.status} />
         </div>
       </div>
@@ -149,7 +147,7 @@ export default function GameDetailPage() {
             <div className="flex flex-col gap-3">
               {focuses.map((f, i) => (
                 <div key={i} className="bg-bg rounded-xl border border-border p-4">
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span
@@ -163,28 +161,22 @@ export default function GameDetailPage() {
                       {f.goal && <p className="text-xs text-text2 ml-7">{f.goal}</p>}
                     </div>
 
-                    {/* Tæller — kun hvis ikke done */}
-                    {!isDone && (
-                      <div className="flex items-center gap-2 ml-3 shrink-0">
-                        <button
-                          onClick={() => incTally(f.field, -1)}
-                          className="w-8 h-8 rounded-full bg-bg2 flex items-center justify-center text-text2 text-lg font-bold active:bg-border"
-                        >
-                          −
-                        </button>
-                        <span className="text-lg font-bold text-text1 w-6 text-center">{f.tally}</span>
-                        <button
-                          onClick={() => incTally(f.field, 1)}
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-lg font-bold active:opacity-80"
-                          style={{ backgroundColor: color }}
-                        >
-                          +
-                        </button>
-                      </div>
-                    )}
-                    {isDone && (
-                      <span className="text-2xl font-black ml-3" style={{ color }}>{f.tally}</span>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => incTally(f.field, -1)}
+                        className="w-8 h-8 rounded-full bg-bg2 flex items-center justify-center text-text2 text-lg font-bold active:bg-border"
+                      >
+                        −
+                      </button>
+                      <span className="text-lg font-bold text-text1 w-6 text-center">{f.tally}</span>
+                      <button
+                        onClick={() => incTally(f.field, 1)}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-lg font-bold active:opacity-80"
+                        style={{ backgroundColor: color }}
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -192,8 +184,8 @@ export default function GameDetailPage() {
           </section>
         )}
 
-        {/* Evaluering (kun når done) */}
-        {isDone && (game.went_well || game.went_bad) && (
+        {/* Evaluering */}
+        {(game.went_well || game.went_bad) && (
           <section>
             <SectionTitle>Evaluering</SectionTitle>
             <div className="flex flex-col gap-3">
@@ -205,7 +197,7 @@ export default function GameDetailPage() {
               )}
               {game.went_bad && (
                 <div className="bg-bg rounded-xl border border-border p-4">
-                  <p className="text-xs font-semibold text-red mb-1">⚠️ Det kan vi gøre bedre</p>
+                  <p className="text-xs font-semibold text-red mb-1">⚠️ Kan gøres bedre</p>
                   <p className="text-sm text-text1">{game.went_bad}</p>
                 </div>
               )}
@@ -213,101 +205,338 @@ export default function GameDetailPage() {
           </section>
         )}
 
-        {/* Afslut kamp-knap */}
-        {!isDone && (
-          <div className="mt-2">
-            <button
-              onClick={() => setShowFinish(true)}
-              className="w-full rounded-xl py-3.5 font-semibold text-sm text-white"
-              style={{ backgroundColor: color }}
-            >
-              Afslut kamp
-            </button>
-          </div>
-        )}
+        {/* Resultat-knap (floating) — altid synlig */}
+        <div>
+          <button
+            onClick={() => setShowResult(true)}
+            className="w-full rounded-xl py-3.5 font-semibold text-sm border-2 transition-colors"
+            style={{ borderColor: color, color, backgroundColor: color + '10' }}
+          >
+            {game.result_us !== null ? `Ret resultat (${game.result_us}–${game.result_them})` : 'Log resultat'}
+          </button>
+        </div>
       </div>
 
-      {/* Finish sheet */}
-      {showFinish && (
-        <>
-          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setShowFinish(false)} />
-          <div className="fixed bottom-14 left-0 right-0 z-50 bg-bg rounded-t-2xl shadow-xl">
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 bg-border rounded-full" />
-            </div>
-            <div className="px-4 pt-2 pb-4">
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-lg font-bold text-text1">Afslut kamp</h3>
-                <button onClick={() => setShowFinish(false)} className="text-text3 p-1">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </button>
-              </div>
+      {/* Result sheet */}
+      {showResult && (
+        <ResultSheet
+          game={game}
+          color={color}
+          onClose={() => setShowResult(false)}
+          onSaved={updated => { setGame(updated); setShowResult(false); }}
+        />
+      )}
 
-              {/* Resultat */}
-              <p className="text-xs font-medium text-text2 mb-2">Resultat</p>
-              <div className="flex items-center gap-3 mb-4">
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="Os"
-                  value={resultUs}
-                  onChange={e => setResultUs(e.target.value)}
-                  className="flex-1 border border-border rounded-xl px-4 py-3 text-2xl font-bold text-center text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg"
-                />
-                <span className="text-xl font-bold text-text3">–</span>
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="Dem"
-                  value={resultThem}
-                  onChange={e => setResultThem(e.target.value)}
-                  className="flex-1 border border-border rounded-xl px-4 py-3 text-2xl font-bold text-center text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg"
-                />
-              </div>
-
-              {/* Det gik godt */}
-              <p className="text-xs font-medium text-text2 mb-1.5">Det gik godt (valgfri)</p>
-              <textarea
-                placeholder="Hvad fungerede?"
-                value={wentWell}
-                onChange={e => setWentWell(e.target.value)}
-                rows={2}
-                className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg resize-none mb-3"
-              />
-
-              {/* Det kan vi gøre bedre */}
-              <p className="text-xs font-medium text-text2 mb-1.5">Det kan vi gøre bedre (valgfri)</p>
-              <textarea
-                placeholder="Hvad skal vi arbejde på?"
-                value={wentBad}
-                onChange={e => setWentBad(e.target.value)}
-                rows={2}
-                className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg resize-none mb-4"
-              />
-
-              <button
-                onClick={finishGame}
-                disabled={saving || resultUs === '' || resultThem === ''}
-                className="w-full rounded-xl py-3.5 font-semibold text-sm text-white disabled:opacity-50"
-                style={{ backgroundColor: color }}
-              >
-                {saving ? 'Gemmer…' : 'Gem resultat'}
-              </button>
-            </div>
-          </div>
-        </>
+      {/* Edit sheet */}
+      {showEdit && (
+        <EditSheet
+          game={game}
+          teams={teams}
+          color={color}
+          onClose={() => setShowEdit(false)}
+          onSaved={updated => { setGame(updated); setShowEdit(false); }}
+        />
       )}
     </div>
   );
 }
 
+/* ─── Result sheet ────────────────────────────────────────────────── */
+function ResultSheet({ game, color, onClose, onSaved }: {
+  game: Game;
+  color: string;
+  onClose: () => void;
+  onSaved: (g: Game) => void;
+}) {
+  const [resultUs,   setResultUs]   = useState(game.result_us   !== null ? String(game.result_us)   : '');
+  const [resultThem, setResultThem] = useState(game.result_them !== null ? String(game.result_them) : '');
+  const [wentWell,   setWentWell]   = useState(game.went_well ?? '');
+  const [wentBad,    setWentBad]    = useState(game.went_bad  ?? '');
+  const [saving,     setSaving]     = useState(false);
+
+  async function save() {
+    const us   = parseInt(resultUs);
+    const them = parseInt(resultThem);
+    if (isNaN(us) || isNaN(them)) return;
+    setSaving(true);
+    try {
+      await api.post(`/games/${game.id}/finish`, {
+        result_us:  us,
+        result_them: them,
+        went_well: wentWell.trim() || null,
+        went_bad:  wentBad.trim()  || null,
+      });
+      onSaved({ ...game, status: 'done', result_us: us, result_them: them,
+        went_well: wentWell.trim() || null, went_bad: wentBad.trim() || null });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <BottomSheet title="Resultat" onClose={onClose}>
+      <p className="text-xs font-medium text-text2 mb-2">Score</p>
+      <div className="flex items-center gap-3 mb-5">
+        <input
+          type="number" min="0" placeholder="Os"
+          value={resultUs} onChange={e => setResultUs(e.target.value)}
+          className="flex-1 border border-border rounded-xl px-4 py-3 text-2xl font-bold text-center text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg"
+        />
+        <span className="text-xl font-bold text-text3">–</span>
+        <input
+          type="number" min="0" placeholder="Dem"
+          value={resultThem} onChange={e => setResultThem(e.target.value)}
+          className="flex-1 border border-border rounded-xl px-4 py-3 text-2xl font-bold text-center text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg"
+        />
+      </div>
+
+      <p className="text-xs font-medium text-text2 mb-1.5">Det gik godt (valgfri)</p>
+      <textarea
+        placeholder="Hvad fungerede?"
+        value={wentWell} onChange={e => setWentWell(e.target.value)}
+        rows={2}
+        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg resize-none mb-3"
+      />
+
+      <p className="text-xs font-medium text-text2 mb-1.5">Kan gøres bedre (valgfri)</p>
+      <textarea
+        placeholder="Hvad skal vi arbejde på?"
+        value={wentBad} onChange={e => setWentBad(e.target.value)}
+        rows={2}
+        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg resize-none mb-4"
+      />
+
+      <button
+        onClick={save}
+        disabled={saving || resultUs === '' || resultThem === ''}
+        className="w-full rounded-xl py-3.5 font-semibold text-sm text-white disabled:opacity-50"
+        style={{ backgroundColor: color }}
+      >
+        {saving ? 'Gemmer…' : 'Gem resultat'}
+      </button>
+    </BottomSheet>
+  );
+}
+
+/* ─── Edit sheet ──────────────────────────────────────────────────── */
+const EMPTY_FOCUS = { focus: '', goal: '' };
+
+function EditSheet({ game, teams, color, onClose, onSaved }: {
+  game: Game;
+  teams: Team[];
+  color: string;
+  onClose: () => void;
+  onSaved: (g: Game) => void;
+}) {
+  const [date,       setDate]       = useState(game.date);
+  const [time,       setTime]       = useState(game.time ?? '');
+  const [meetupTime, setMeetupTime] = useState(game.meetup_time ?? '');
+  const [opponent,   setOpponent]   = useState(game.opponent);
+  const [location,   setLocation]   = useState(game.location ?? '');
+  const [isHome,     setIsHome]     = useState(game.is_home === 1);
+  const [teamId,     setTeamId]     = useState(game.team_id);
+  const [focuses, setFocuses] = useState<{ focus: string; goal: string }[]>(() => {
+    const raw = [
+      { focus: game.focus_1 ?? '', goal: game.goal_1 ?? '' },
+      { focus: game.focus_2 ?? '', goal: game.goal_2 ?? '' },
+      { focus: game.focus_3 ?? '', goal: game.goal_3 ?? '' },
+    ].filter(f => f.focus);
+    return raw.length > 0 ? raw : [{ ...EMPTY_FOCUS }];
+  });
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState('');
+
+  function setFocusField(i: number, field: 'focus' | 'goal', value: string) {
+    setFocuses(fs => fs.map((f, idx) => idx === i ? { ...f, [field]: value } : f));
+  }
+
+  async function save() {
+    if (!opponent.trim() || !date) { setError('Udfyld modstander og dato'); return; }
+    setError(''); setSaving(true);
+    try {
+      await api.patch(`/games/${game.id}`, {
+        team_id: teamId,
+        date,
+        time: time || null,
+        meetup_time: meetupTime || null,
+        opponent: opponent.trim(),
+        location: location.trim() || null,
+        is_home: isHome ? 1 : 0,
+      });
+
+      const filled = focuses.filter(f => f.focus.trim());
+      await api.post(`/games/${game.id}/focus`, {
+        focus_1: filled[0]?.focus.trim() ?? null,
+        goal_1:  filled[0]?.goal.trim()  ?? null,
+        focus_2: filled[1]?.focus.trim() ?? null,
+        goal_2:  filled[1]?.goal.trim()  ?? null,
+        focus_3: filled[2]?.focus.trim() ?? null,
+        goal_3:  filled[2]?.goal.trim()  ?? null,
+      });
+
+      onSaved({
+        ...game, team_id: teamId, date, time: time || null,
+        meetup_time: meetupTime || null, opponent: opponent.trim(),
+        location: location.trim() || null, is_home: isHome ? 1 : 0,
+        focus_1: filled[0]?.focus.trim() ?? null, goal_1: filled[0]?.goal.trim() ?? null,
+        focus_2: filled[1]?.focus.trim() ?? null, goal_2: filled[1]?.goal.trim() ?? null,
+        focus_3: filled[2]?.focus.trim() ?? null, goal_3: filled[2]?.goal.trim() ?? null,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Fejl');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputCls = 'w-full border border-border rounded-lg px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg';
+
+  return (
+    <BottomSheet title="Rediger kamp" onClose={onClose} scrollable>
+      <div className="flex flex-col gap-4">
+        {/* Hold */}
+        <div>
+          <label className="block text-xs font-medium text-text2 mb-1.5">Hold</label>
+          <div className="flex gap-2 flex-wrap">
+            {teams.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTeamId(t.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-colors"
+                style={{
+                  borderColor: teamId === t.id ? t.color : 'transparent',
+                  backgroundColor: teamId === t.id ? t.color + '22' : '#f5f5f5',
+                  color: teamId === t.id ? t.color : '#666',
+                }}
+              >
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.color }} />
+                {t.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Modstander */}
+        <div>
+          <label className="block text-xs font-medium text-text2 mb-1.5">Modstander</label>
+          <input type="text" value={opponent} onChange={e => setOpponent(e.target.value)} className={inputCls} />
+        </div>
+
+        {/* Hjemme/ude */}
+        <div>
+          <label className="block text-xs font-medium text-text2 mb-1.5">Hvor</label>
+          <div className="flex rounded-lg overflow-hidden border border-border">
+            <button onClick={() => setIsHome(true)}  className={`flex-1 py-2 text-sm font-medium transition-colors ${isHome  ? 'bg-green text-white' : 'bg-bg text-text2'}`}>Hjemme</button>
+            <button onClick={() => setIsHome(false)} className={`flex-1 py-2 text-sm font-medium transition-colors ${!isHome ? 'bg-green text-white' : 'bg-bg text-text2'}`}>Ude</button>
+          </div>
+        </div>
+
+        {/* Dato */}
+        <div>
+          <label className="block text-xs font-medium text-text2 mb-1.5">Dato</label>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
+        </div>
+
+        {/* Tider */}
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-text2 mb-1.5">Kampstart</label>
+            <input type="time" value={time} onChange={e => setTime(e.target.value)} className={inputCls} />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-text2 mb-1.5">Mødetid</label>
+            <input type="time" value={meetupTime} onChange={e => setMeetupTime(e.target.value)} className={inputCls} />
+          </div>
+        </div>
+
+        {/* Lokation */}
+        <div>
+          <label className="block text-xs font-medium text-text2 mb-1.5">Lokation (valgfri)</label>
+          <input type="text" placeholder="Bane, adresse…" value={location} onChange={e => setLocation(e.target.value)} className={inputCls} />
+        </div>
+
+        {/* Fokuspunkter */}
+        <div>
+          <p className="text-xs font-medium text-text2 mb-2">Fokuspunkter (valgfri)</p>
+          <div className="flex flex-col gap-3">
+            {focuses.map((f, i) => (
+              <div key={i} className="bg-bg2 rounded-xl p-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-text2">#{i + 1}</span>
+                  {focuses.length > 1 && (
+                    <button onClick={() => setFocuses(fs => fs.filter((_, idx) => idx !== i))} className="text-text3">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  )}
+                </div>
+                <input type="text" placeholder="Fokuspunkt" value={f.focus} onChange={e => setFocusField(i, 'focus', e.target.value)} className={inputCls} />
+                <input type="text" placeholder="Mål (valgfri)" value={f.goal}  onChange={e => setFocusField(i, 'goal',  e.target.value)} className={inputCls} />
+              </div>
+            ))}
+            {focuses.length < 3 && (
+              <button
+                onClick={() => setFocuses(fs => [...fs, { ...EMPTY_FOCUS }])}
+                className="flex items-center justify-center gap-1.5 border border-dashed border-border rounded-xl py-2.5 text-sm text-text3"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Tilføj fokuspunkt
+              </button>
+            )}
+          </div>
+        </div>
+
+        {error && <p className="text-red text-sm">{error}</p>}
+      </div>
+
+      <div className="pt-4 border-t border-border mt-2">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="w-full rounded-xl py-3.5 font-semibold text-sm text-white disabled:opacity-50"
+          style={{ backgroundColor: color }}
+        >
+          {saving ? 'Gemmer…' : 'Gem ændringer'}
+        </button>
+      </div>
+    </BottomSheet>
+  );
+}
+
+/* ─── Shared bottom sheet ─────────────────────────────────────────── */
+function BottomSheet({ title, children, onClose, scrollable = false }: {
+  title: string;
+  children: React.ReactNode;
+  onClose: () => void;
+  scrollable?: boolean;
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
+      <div className={`fixed bottom-14 left-0 right-0 z-50 bg-bg rounded-t-2xl shadow-xl flex flex-col ${scrollable ? 'max-h-[calc(90dvh-3.5rem)]' : ''}`}>
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 bg-border rounded-full" />
+        </div>
+        <div className={`flex items-center justify-between px-4 pt-2 pb-3 shrink-0`}>
+          <h3 className="text-lg font-bold text-text1">{title}</h3>
+          <button onClick={onClose} className="text-text3 p-1">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div className={`px-4 pb-4 ${scrollable ? 'overflow-y-auto flex-1' : ''}`} style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+          {children}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ─── Helpers ─────────────────────────────────────────────────────── */
 function MetaItem({ icon, children }: { icon: string; children: React.ReactNode }) {
   return (
     <span className="flex items-center gap-1 text-xs text-text2">
-      <span>{icon}</span>
-      <span>{children}</span>
+      <span>{icon}</span><span>{children}</span>
     </span>
   );
 }
