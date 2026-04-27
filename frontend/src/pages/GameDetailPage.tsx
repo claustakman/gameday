@@ -56,7 +56,6 @@ export default function GameDetailPage() {
   const d      = new Date(game.date + 'T00:00:00');
   const dateStr = d.toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' });
   const isHome  = game.is_home === 1;
-  const isDone  = game.status === 'done';
 
   const focuses = [
     { focus: game.focus_1, goal: game.goal_1, tally: game.tally_1, field: 'tally_1' as const },
