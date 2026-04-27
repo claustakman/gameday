@@ -20,23 +20,37 @@ export default function GamesPage() {
     api.get<Team[]>('/teams').then(setTeams).catch(() => {});
   }, []);
 
-  useEffect(() => {
+  function fetchGames(overrides?: { teamId?: string; season?: string; status?: string; search?: string }) {
     setLoading(true);
+    const t = overrides?.teamId  ?? teamId;
+    const se = overrides?.season ?? season;
+    const st = overrides?.status ?? status;
+    const sr = overrides?.search ?? search;
     const params = new URLSearchParams();
-    if (teamId) params.set('team_id', teamId);
-    if (season) params.set('season', season);
-    if (status) params.set('status', status);
-    if (search) params.set('opponent', search);
+    if (t)  params.set('team_id',  t);
+    if (se) params.set('season',   se);
+    if (st) params.set('status',   st);
+    if (sr) params.set('opponent', sr);
 
     api.get<Game[]>(`/games?${params}`)
       .then(setGames)
       .catch(() => setGames([]))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    fetchGames();
   }, [teamId, season, status, search]);
 
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
-
   const seasons = [...new Set(games.map(g => g.season))].sort().reverse();
+
+  const statusOptions = [
+    { value: '',         label: 'Alle' },
+    { value: 'planned',  label: 'Planlagt' },
+    { value: 'done',     label: 'Spillet' },
+    { value: 'archived', label: 'Arkiveret' },
+  ];
 
   return (
     <div className="flex flex-col min-h-full">
@@ -67,40 +81,45 @@ export default function GamesPage() {
           />
         </div>
 
-        {/* Filtre */}
-        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-          <select
-            value={teamId}
-            onChange={e => setTeamId(e.target.value)}
-            className="shrink-0 bg-bg2 rounded-lg px-3 py-1.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green"
-          >
-            <option value="">Alle hold</option>
+        {/* Chip-filtre */}
+        <div className="flex flex-col gap-2">
+          {/* Hold chips */}
+          <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar">
+            <ChipButton active={teamId === ''} onClick={() => setTeamId('')}>Alle hold</ChipButton>
             {teams.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
+              <ChipButton
+                key={t.id}
+                active={teamId === t.id}
+                color={t.color}
+                onClick={() => setTeamId(teamId === t.id ? '' : t.id)}
+              >
+                {t.name}
+              </ChipButton>
             ))}
-          </select>
+          </div>
 
-          <select
-            value={season}
-            onChange={e => setSeason(e.target.value)}
-            className="shrink-0 bg-bg2 rounded-lg px-3 py-1.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green"
-          >
-            <option value="">Alle sæsoner</option>
+          {/* Status + sæson chips */}
+          <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar">
+            {statusOptions.map(opt => (
+              <ChipButton
+                key={opt.value}
+                active={status === opt.value}
+                onClick={() => setStatus(opt.value)}
+              >
+                {opt.label}
+              </ChipButton>
+            ))}
+            {seasons.length > 0 && <span className="w-px bg-border shrink-0 mx-1" />}
             {seasons.map(s => (
-              <option key={s} value={s}>{s}</option>
+              <ChipButton
+                key={s}
+                active={season === s}
+                onClick={() => setSeason(season === s ? '' : s)}
+              >
+                {s}
+              </ChipButton>
             ))}
-          </select>
-
-          <select
-            value={status}
-            onChange={e => setStatus(e.target.value)}
-            className="shrink-0 bg-bg2 rounded-lg px-3 py-1.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green"
-          >
-            <option value="">Status</option>
-            <option value="planned">Planlagt</option>
-            <option value="done">Spillet</option>
-            <option value="archived">Arkiveret</option>
-          </select>
+          </div>
         </div>
       </div>
 
@@ -114,7 +133,7 @@ export default function GamesPage() {
           <p className="text-center text-text3 text-sm pt-12">Ingen kampe fundet</p>
         ) : (
           games.map(game => (
-            <GameCard
+            <GameRow
               key={game.id}
               game={game}
               team={teamMap[game.team_id]}
@@ -128,9 +147,9 @@ export default function GamesPage() {
         <NewGameSheet
           teams={teams}
           onClose={() => setShowNew(false)}
-          onCreated={(id) => {
+          onCreated={() => {
             setShowNew(false);
-            navigate(`/games/${id}`);
+            fetchGames();
           }}
         />
       )}
@@ -138,68 +157,97 @@ export default function GamesPage() {
   );
 }
 
-function GameCard({ game, team, onClick }: { game: Game; team?: Team; onClick: () => void }) {
-  const date = formatDate(game.date);
+function ChipButton({
+  children, active, color, onClick,
+}: {
+  children: React.ReactNode;
+  active: boolean;
+  color?: string;
+  onClick: () => void;
+}) {
+  const activeStyle = color
+    ? { backgroundColor: color + '22', borderColor: color, color }
+    : {};
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-colors whitespace-nowrap ${
+        active
+          ? color ? 'border-transparent' : 'bg-green text-white border-transparent'
+          : 'bg-bg2 text-text2 border-transparent'
+      }`}
+      style={active && color ? activeStyle : {}}
+    >
+      {children}
+    </button>
+  );
+}
+
+function GameRow({ game, team, onClick }: { game: Game; team?: Team; onClick: () => void }) {
+  const d = new Date(game.date + 'T00:00:00');
+  const day   = d.toLocaleDateString('da-DK', { weekday: 'short' });
+  const dayNum = d.getDate();
+  const mon   = d.toLocaleDateString('da-DK', { month: 'short' });
   const isHome = game.is_home === 1;
   const isDone = game.status === 'done';
 
   return (
     <button
       onClick={onClick}
-      className="w-full text-left bg-bg rounded-xl border border-border p-3.5 active:bg-bg2 transition-colors"
+      className="w-full text-left bg-bg rounded-xl border border-border p-3 flex items-center gap-3 active:bg-bg2 transition-colors"
     >
-      {/* Top row: dato + hold-badge */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-text3 font-medium">{date}{game.time ? ` · ${game.time}` : ''}</span>
-        <div className="flex items-center gap-1.5">
+      {/* Dato-blok */}
+      <div className="shrink-0 w-11 flex flex-col items-center justify-center bg-bg2 rounded-lg py-1.5">
+        <span className="text-[10px] font-medium text-text3 uppercase">{day}</span>
+        <span className="text-lg font-bold text-text1 leading-tight">{dayNum}</span>
+        <span className="text-[10px] font-medium text-text3">{mon}</span>
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <span className="text-[11px] text-text3">{isHome ? 'Hjemme vs.' : 'Ude mod'}</span>
           {team && (
             <span
-              className="text-[11px] font-semibold px-2 py-0.5 rounded-full text-white"
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white"
               style={{ backgroundColor: team.color }}
             >
               {team.name}
             </span>
           )}
+        </div>
+        <p className="font-semibold text-text1 text-sm truncate">{game.opponent}</p>
+        {game.time && (
+          <p className="text-xs text-text3 mt-0.5">{game.time}{game.location ? ` · ${game.location}` : ''}</p>
+        )}
+        {!game.time && game.location && (
+          <p className="text-xs text-text3 mt-0.5 truncate">{game.location}</p>
+        )}
+      </div>
+
+      {/* Højre: resultat eller badge */}
+      <div className="shrink-0 flex flex-col items-end gap-1">
+        {isDone && game.result_us !== null ? (
+          <>
+            <span className="text-lg font-bold text-text1 leading-tight">{game.result_us}–{game.result_them}</span>
+            {game.motm_player_id && <span className="text-[10px] text-text3">⭐ MOTM</span>}
+          </>
+        ) : (
           <StatusBadge status={game.status} />
-        </div>
+        )}
       </div>
-
-      {/* Modstander */}
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-[11px] text-text3">{isHome ? 'Hjemme vs.' : 'Ude mod'}</span>
-        <span className="font-semibold text-text1">{game.opponent}</span>
-      </div>
-
-      {/* Resultat eller lokation */}
-      {isDone && game.result_us !== null ? (
-        <div className="flex items-center gap-1.5 mt-1">
-          <span className="text-lg font-bold text-text1">{game.result_us}–{game.result_them}</span>
-          {game.motm_player_id && (
-            <span className="text-xs text-text3">⭐ MOTM</span>
-          )}
-        </div>
-      ) : game.location ? (
-        <p className="text-xs text-text2 truncate">{game.location}</p>
-      ) : null}
     </button>
   );
 }
 
 function StatusBadge({ status }: { status: Game['status'] }) {
-  if (status === 'planned') return null;
-  const styles = {
-    done:     'bg-green-light text-green-dark',
-    archived: 'bg-bg2 text-text3',
-  } as const;
-  const labels = { done: 'Spillet', archived: 'Arkiveret' } as const;
+  const cfg = {
+    planned:  { cls: 'bg-bg2 text-text3',            label: 'Planlagt' },
+    done:     { cls: 'bg-green-light text-green-dark', label: 'Spillet' },
+    archived: { cls: 'bg-bg2 text-text3',            label: 'Arkiveret' },
+  };
+  const { cls, label } = cfg[status];
   return (
-    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${styles[status]}`}>
-      {labels[status]}
-    </span>
+    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${cls}`}>{label}</span>
   );
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso + 'T00:00:00');
-  return d.toLocaleDateString('da-DK', { weekday: 'short', day: 'numeric', month: 'short' });
 }

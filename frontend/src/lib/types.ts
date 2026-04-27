@@ -23,6 +23,9 @@ export interface Game {
   focus_1: string | null;
   focus_2: string | null;
   focus_3: string | null;
+  goal_1: string | null;
+  goal_2: string | null;
+  goal_3: string | null;
   tally_1: number;
   tally_2: number;
   tally_3: number;
@@ -30,4 +33,15 @@ export interface Game {
   went_bad: string | null;
   motm_player_id: string | null;
   hs_activity_id: string | null;
+}
+
+export interface RosterEntry {
+  id: string;
+  game_id: string;
+  player_id: string | null;
+  coach_id: string | null;
+  is_keeper: number;
+  player_name: string | null;
+  nickname: string | null;
+  coach_name: string | null;
 }

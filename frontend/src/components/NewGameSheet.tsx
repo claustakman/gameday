@@ -4,7 +4,7 @@ import type { Team } from '../lib/types';
 
 interface Props {
   teams: Team[];
-  onCreated: (gameId: string) => void;
+  onCreated: () => void;
   onClose: () => void;
 }
 
@@ -78,7 +78,7 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
         });
       }
 
-      onCreated(res.id);
+      onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fejl');
     } finally {
@@ -90,7 +90,7 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
     <>
       <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
 
-      <div className="fixed bottom-14 left-0 right-0 z-50 bg-bg rounded-t-2xl shadow-xl max-h-[calc(92dvh-3.5rem)] flex flex-col">
+      <div className="fixed bottom-14 left-0 right-0 z-50 bg-bg rounded-t-2xl shadow-xl max-h-[calc(90dvh-3.5rem)] flex flex-col">
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 bg-border rounded-full" />
@@ -239,7 +239,7 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
         </div>
 
         {/* Fast knap i bunden — over tab-bar */}
-        <div className="shrink-0 px-4 pt-3 pb-4 border-t border-border bg-bg">
+        <div className="shrink-0 px-4 pt-3 pb-4 border-t border-border bg-bg" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <button
             onClick={submit}
             disabled={saving || !teamId}
