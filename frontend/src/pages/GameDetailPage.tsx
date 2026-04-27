@@ -367,7 +367,8 @@ export default function GameDetailPage() {
         <AddToRosterSheet
           allPlayers={allPlayers}
           rosterPlayerIds={roster.filter(r => r.player_id).map(r => r.player_id!)}
-          color={color}
+          teams={teams}
+          fallbackColor={color}
           onAdd={async (pid) => { await addToRoster(pid); }}
           onClose={() => setShowRoster(false)}
         />
@@ -416,37 +417,35 @@ function ResultSheet({ game, color, roster, onClose, onSaved }: {
 
   return (
     <BottomSheet title="Resultat" onClose={onClose} scrollable>
+      {/* Score — side-by-side, fixed width */}
       <p className="text-xs font-medium text-text2 mb-2">Score</p>
       <div className="flex items-center gap-3 mb-5">
         <input
-          type="number" min="0" placeholder="Os"
+          type="number" inputMode="numeric" min="0" placeholder="Os"
           value={resultUs} onChange={e => setResultUs(e.target.value)}
-          className="flex-1 border border-border rounded-xl px-4 py-3 text-2xl font-bold text-center text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg"
+          className="w-0 flex-1 border border-border rounded-xl px-2 py-3 text-2xl font-bold text-center text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg"
         />
-        <span className="text-xl font-bold text-text3">–</span>
+        <span className="text-xl font-bold text-text3 shrink-0">–</span>
         <input
-          type="number" min="0" placeholder="Dem"
+          type="number" inputMode="numeric" min="0" placeholder="Dem"
           value={resultThem} onChange={e => setResultThem(e.target.value)}
-          className="flex-1 border border-border rounded-xl px-4 py-3 text-2xl font-bold text-center text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg"
+          className="w-0 flex-1 border border-border rounded-xl px-2 py-3 text-2xl font-bold text-center text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg"
         />
       </div>
 
-      {/* MOTM */}
+      {/* MOTM — kompakt chip-grid */}
       {rosterPlayers.length > 0 && (
         <>
           <p className="text-xs font-medium text-text2 mb-2">Dagens spiller — MOTM (valgfri)</p>
-          <div className="flex flex-col gap-1 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4">
             {/* Ingen */}
             <button
               onClick={() => setMotmId(null)}
-              className={`flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl border transition-colors ${
-                motmId === null ? 'border-border bg-bg2' : 'border-transparent'
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-xs font-semibold transition-colors ${
+                motmId === null ? 'bg-bg2 border-border text-text1' : 'border-transparent text-text3'
               }`}
             >
-              <div className="w-8 h-8 rounded-full bg-bg2 border border-border flex items-center justify-center shrink-0">
-                <span className="text-sm text-text3">–</span>
-              </div>
-              <span className={`text-sm font-medium ${motmId === null ? 'text-text1' : 'text-text3'}`}>Ingen</span>
+              <span>Ingen</span>
             </button>
             {rosterPlayers.map(entry => {
               const selected = motmId === entry.player_id;
@@ -454,27 +453,22 @@ function ResultSheet({ game, color, roster, onClose, onSaved }: {
                 <button
                   key={entry.id}
                   onClick={() => setMotmId(selected ? null : entry.player_id!)}
-                  className={`flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl border transition-colors ${
-                    selected ? 'border-transparent' : 'border-transparent'
-                  }`}
-                  style={selected ? { backgroundColor: color + '15', borderColor: color + '60' } : {}}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-xs font-semibold transition-colors`}
+                  style={selected
+                    ? { backgroundColor: color + '20', borderColor: color, color }
+                    : { borderColor: 'transparent', color: 'var(--color-text2)' }
+                  }
                 >
                   <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: selected ? color : color + '30', color: '#fff' }}
+                    className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: selected ? color : color + '40', color: '#fff' }}
                   >
-                    <span className="text-xs font-bold">
+                    <span className="text-[9px] font-bold leading-none">
                       {entry.shirt_number != null ? entry.shirt_number : initials(entry.player_name ?? '')}
                     </span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-semibold truncate ${selected ? 'text-text1' : 'text-text2'}`}>
-                      {entry.nickname ?? entry.player_name}
-                    </p>
-                  </div>
-                  {selected && (
-                    <span className="text-base shrink-0">⭐</span>
-                  )}
+                  <span>{entry.nickname ?? entry.player_name}</span>
+                  {selected && <span className="text-xs">⭐</span>}
                 </button>
               );
             })}
@@ -728,15 +722,21 @@ function BottomSheet({ title, children, onClose, scrollable = false }: {
 }
 
 /* ─── Add to roster sheet ─────────────────────────────────────────── */
-function AddToRosterSheet({ allPlayers, rosterPlayerIds, color, onAdd, onClose }: {
+function AddToRosterSheet({ allPlayers, rosterPlayerIds, teams, fallbackColor, onAdd, onClose }: {
   allPlayers: Player[];
   rosterPlayerIds: string[];
-  color: string;
+  teams: Team[];
+  fallbackColor: string;
   onAdd: (playerId: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [search,  setSearch]  = useState('');
   const [adding,  setAdding]  = useState<string | null>(null);
+
+  const teamColorMap = useMemo(() =>
+    Object.fromEntries(teams.map(t => [t.id, t.color])),
+    [teams]
+  );
 
   const available = useMemo(() =>
     allPlayers
@@ -763,54 +763,77 @@ function AddToRosterSheet({ allPlayers, rosterPlayerIds, color, onAdd, onClose }
   }
 
   return (
-    <BottomSheet title="Tilføj spiller" onClose={onClose} scrollable>
-      {/* Søg */}
-      <div className="relative mb-3">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-text3" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input
-          type="search"
-          placeholder="Søg navn eller nummer…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full bg-bg2 rounded-lg pl-9 pr-3 py-2 text-sm text-text1 placeholder-text3 focus:outline-none focus:ring-2 focus:ring-green"
-          autoFocus
-        />
+    /* Full-screen overlay — covers tab bar too (z-[60]) */
+    <div className="fixed inset-0 z-[60] bg-bg flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border shrink-0"
+        style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
+      >
+        <h3 className="text-lg font-bold text-text1">Tilføj spiller</h3>
+        <button onClick={onClose} className="text-text3 p-1">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
 
-      {available.length === 0 ? (
-        <p className="text-center text-text3 text-sm py-6">
-          {search ? 'Ingen spillere matcher søgningen' : 'Alle aktive spillere er allerede tilføjet'}
-        </p>
-      ) : (
-        <div className="flex flex-col gap-1">
-          {available.map(p => (
-            <button
-              key={p.id}
-              onClick={() => add(p.id)}
-              disabled={adding === p.id}
-              className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl active:bg-bg2 transition-colors disabled:opacity-50"
-            >
-              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: color, color: '#fff' }}>
-                <span className="text-xs font-bold">
-                  {p.shirt_number != null ? p.shirt_number : initials(p.full_name)}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-text1 truncate">{p.nickname ?? p.full_name}</p>
-                {p.nickname && <p className="text-xs text-text3 truncate">{p.full_name}</p>}
-              </div>
-              {p.birth_year && <span className="text-xs text-text3 shrink-0">{p.birth_year}</span>}
-              {adding === p.id
-                ? <div className="w-4 h-4 border-2 border-green border-t-transparent rounded-full animate-spin shrink-0" />
-                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-green shrink-0"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              }
-            </button>
-          ))}
+      {/* Søg — sticky under header */}
+      <div className="px-4 py-2.5 border-b border-border shrink-0">
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-text3" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            type="search"
+            placeholder="Søg navn eller nummer…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full bg-bg2 rounded-lg pl-9 pr-3 py-2 text-sm text-text1 placeholder-text3 focus:outline-none focus:ring-2 focus:ring-green"
+            autoFocus
+          />
         </div>
-      )}
-    </BottomSheet>
+      </div>
+
+      {/* Liste — scrollbar */}
+      <div className="flex-1 overflow-y-auto px-4 py-2"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        {available.length === 0 ? (
+          <p className="text-center text-text3 text-sm py-10">
+            {search ? 'Ingen spillere matcher søgningen' : 'Alle aktive spillere er allerede tilføjet'}
+          </p>
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            {available.map(p => {
+              const avatarColor = (p.primary_team_id && teamColorMap[p.primary_team_id]) ?? fallbackColor;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => add(p.id)}
+                  disabled={adding === p.id}
+                  className="flex items-center gap-3 w-full text-left px-2 py-2.5 rounded-xl active:bg-bg2 transition-colors disabled:opacity-50"
+                >
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: avatarColor, color: '#fff' }}>
+                    <span className="text-xs font-bold">
+                      {p.shirt_number != null ? p.shirt_number : initials(p.full_name)}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-text1 truncate">{p.nickname ?? p.full_name}</p>
+                    {p.nickname && <p className="text-xs text-text3 truncate">{p.full_name}</p>}
+                  </div>
+                  {p.birth_year && <span className="text-xs text-text3 shrink-0">{p.birth_year}</span>}
+                  {adding === p.id
+                    ? <div className="w-5 h-5 border-2 border-green border-t-transparent rounded-full animate-spin shrink-0" />
+                    : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-green shrink-0"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  }
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
