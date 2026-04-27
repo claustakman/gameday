@@ -345,6 +345,7 @@ export default function GameDetailPage() {
         <ResultSheet
           game={game}
           color={color}
+          roster={roster}
           onClose={() => setShowResult(false)}
           onSaved={updated => { setGame(updated); setShowResult(false); }}
         />
@@ -376,17 +377,21 @@ export default function GameDetailPage() {
 }
 
 /* ─── Result sheet ────────────────────────────────────────────────── */
-function ResultSheet({ game, color, onClose, onSaved }: {
+function ResultSheet({ game, color, roster, onClose, onSaved }: {
   game: Game;
   color: string;
+  roster: RosterEntry[];
   onClose: () => void;
   onSaved: (g: Game) => void;
 }) {
-  const [resultUs,   setResultUs]   = useState(game.result_us   !== null ? String(game.result_us)   : '');
-  const [resultThem, setResultThem] = useState(game.result_them !== null ? String(game.result_them) : '');
-  const [wentWell,   setWentWell]   = useState(game.went_well ?? '');
-  const [wentBad,    setWentBad]    = useState(game.went_bad  ?? '');
-  const [saving,     setSaving]     = useState(false);
+  const [resultUs,    setResultUs]    = useState(game.result_us   !== null ? String(game.result_us)   : '');
+  const [resultThem,  setResultThem]  = useState(game.result_them !== null ? String(game.result_them) : '');
+  const [wentWell,    setWentWell]    = useState(game.went_well ?? '');
+  const [wentBad,     setWentBad]     = useState(game.went_bad  ?? '');
+  const [motmId,      setMotmId]      = useState<string | null>(game.motm_player_id ?? null);
+  const [saving,      setSaving]      = useState(false);
+
+  const rosterPlayers = roster.filter(r => r.player_id);
 
   async function save() {
     const us   = parseInt(resultUs);
@@ -395,20 +400,22 @@ function ResultSheet({ game, color, onClose, onSaved }: {
     setSaving(true);
     try {
       await api.post(`/games/${game.id}/finish`, {
-        result_us:  us,
-        result_them: them,
-        went_well: wentWell.trim() || null,
-        went_bad:  wentBad.trim()  || null,
+        result_us:       us,
+        result_them:     them,
+        went_well:       wentWell.trim() || null,
+        went_bad:        wentBad.trim()  || null,
+        motm_player_id:  motmId || null,
       });
       onSaved({ ...game, status: 'done', result_us: us, result_them: them,
-        went_well: wentWell.trim() || null, went_bad: wentBad.trim() || null });
+        went_well: wentWell.trim() || null, went_bad: wentBad.trim() || null,
+        motm_player_id: motmId || null });
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <BottomSheet title="Resultat" onClose={onClose}>
+    <BottomSheet title="Resultat" onClose={onClose} scrollable>
       <p className="text-xs font-medium text-text2 mb-2">Score</p>
       <div className="flex items-center gap-3 mb-5">
         <input
@@ -423,6 +430,57 @@ function ResultSheet({ game, color, onClose, onSaved }: {
           className="flex-1 border border-border rounded-xl px-4 py-3 text-2xl font-bold text-center text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg"
         />
       </div>
+
+      {/* MOTM */}
+      {rosterPlayers.length > 0 && (
+        <>
+          <p className="text-xs font-medium text-text2 mb-2">Dagens spiller — MOTM (valgfri)</p>
+          <div className="flex flex-col gap-1 mb-4">
+            {/* Ingen */}
+            <button
+              onClick={() => setMotmId(null)}
+              className={`flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl border transition-colors ${
+                motmId === null ? 'border-border bg-bg2' : 'border-transparent'
+              }`}
+            >
+              <div className="w-8 h-8 rounded-full bg-bg2 border border-border flex items-center justify-center shrink-0">
+                <span className="text-sm text-text3">–</span>
+              </div>
+              <span className={`text-sm font-medium ${motmId === null ? 'text-text1' : 'text-text3'}`}>Ingen</span>
+            </button>
+            {rosterPlayers.map(entry => {
+              const selected = motmId === entry.player_id;
+              return (
+                <button
+                  key={entry.id}
+                  onClick={() => setMotmId(selected ? null : entry.player_id!)}
+                  className={`flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl border transition-colors ${
+                    selected ? 'border-transparent' : 'border-transparent'
+                  }`}
+                  style={selected ? { backgroundColor: color + '15', borderColor: color + '60' } : {}}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: selected ? color : color + '30', color: '#fff' }}
+                  >
+                    <span className="text-xs font-bold">
+                      {entry.shirt_number != null ? entry.shirt_number : initials(entry.player_name ?? '')}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-semibold truncate ${selected ? 'text-text1' : 'text-text2'}`}>
+                      {entry.nickname ?? entry.player_name}
+                    </p>
+                  </div>
+                  {selected && (
+                    <span className="text-base shrink-0">⭐</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       <p className="text-xs font-medium text-text2 mb-1.5">Det gik godt (valgfri)</p>
       <textarea
