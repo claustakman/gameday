@@ -99,9 +99,15 @@ gameRoutes.patch('/:id', async (c) => {
 gameRoutes.delete('/:id', async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
-  await c.env.DB.prepare(`
-    DELETE FROM games WHERE id = ? AND team_id IN (SELECT id FROM teams WHERE org_id = ?)
-  `).bind(id, user.org).run();
+  // Verify ownership before deleting
+  const game = await c.env.DB.prepare(
+    `SELECT g.id FROM games g JOIN teams t ON t.id = g.team_id WHERE g.id = ? AND t.org_id = ?`
+  ).bind(id, user.org).first();
+  if (!game) return c.json({ error: 'Not found' }, 404);
+
+  // Delete related rows first (no CASCADE in D1)
+  await c.env.DB.prepare('DELETE FROM game_roster WHERE game_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM games WHERE id = ?').bind(id).run();
   return c.json({ ok: true });
 });
 
