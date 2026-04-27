@@ -90,7 +90,10 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
     <>
       <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
 
-      <div className="fixed bottom-14 left-0 right-0 z-50 bg-bg rounded-t-2xl shadow-xl max-h-[calc(90dvh-3.5rem)] flex flex-col">
+      <div
+        className="fixed left-0 right-0 z-50 bg-bg rounded-t-2xl shadow-xl flex flex-col max-h-[calc(90dvh-3.5rem-env(safe-area-inset-bottom))]"
+        style={{ bottom: 'calc(3.5rem + env(safe-area-inset-bottom))' }}
+      >
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 bg-border rounded-full" />

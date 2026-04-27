@@ -38,8 +38,8 @@ export default function TabBar() {
 
       {/* Slide-up menu */}
       {open && (
-        <div className="fixed bottom-14 left-0 right-0 z-50 bg-bg border-t border-border shadow-xl rounded-t-2xl pb-1"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        <div className="fixed left-0 right-0 z-50 bg-bg border-t border-border shadow-xl rounded-t-2xl"
+          style={{ bottom: 'calc(3.5rem + env(safe-area-inset-bottom))', paddingBottom: '0.25rem' }}
         >
           <div className="flex justify-center pt-2.5 pb-2">
             <div className="w-8 h-1 bg-border rounded-full" />
@@ -61,19 +61,18 @@ export default function TabBar() {
       )}
 
       {/* Tab bar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-bg border-t border-border flex z-50"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-      >
+      <nav className="fixed bottom-0 left-0 right-0 bg-bg border-t border-border flex z-50">
         {mainTabs.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center flex-1 py-2 gap-0.5 text-[11px] font-medium transition-colors ${
+              `flex flex-col items-center flex-1 pt-2 gap-0.5 text-[11px] font-medium transition-colors ${
                 isActive ? 'text-green' : 'text-text3'
               }`
             }
+            style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
           >
             {({ isActive }) => (
               <>
@@ -87,9 +86,10 @@ export default function TabBar() {
         {/* Hamburger */}
         <button
           onClick={() => setOpen(o => !o)}
-          className={`flex flex-col items-center justify-center flex-1 py-2 gap-0.5 text-[11px] font-medium transition-colors ${
+          className={`flex flex-col items-center flex-1 pt-2 gap-0.5 text-[11px] font-medium transition-colors ${
             menuActive || open ? 'text-green' : 'text-text3'
           }`}
+          style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
         >
           <MenuIcon active={menuActive || open} />
           <span>Mere</span>
