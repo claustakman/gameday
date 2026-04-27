@@ -35,6 +35,24 @@ export interface Game {
   hs_activity_id: string | null;
 }
 
+export interface Player {
+  id: string;
+  org_id: string;
+  full_name: string;
+  nickname: string | null;
+  birth_year: number | null;
+  is_default_keeper: number;
+  hs_user_id: string | null;
+  active: number;
+}
+
+export interface Coach {
+  id: string;
+  org_id: string;
+  name: string;
+  hs_user_id: string | null;
+}
+
 export interface RosterEntry {
   id: string;
   game_id: string;
@@ -44,4 +62,13 @@ export interface RosterEntry {
   player_name: string | null;
   nickname: string | null;
   coach_name: string | null;
+}
+
+export interface PlayerStat {
+  id: string;
+  full_name: string;
+  nickname: string | null;
+  appearances: number;
+  keeper_appearances: number;
+  motm_count: number;
 }

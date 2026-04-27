@@ -20,34 +20,27 @@ interface OrgUser {
 }
 
 export default function SettingsPage() {
-  const { user, logout, updateUser } = useAuth();
+  const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
-  const [teams, setTeams]     = useState<Team[]>([]);
-  const [season, setSeason]   = useState(() => {
+  const [teams, setTeams]   = useState<Team[]>([]);
+  const [season, setSeason] = useState(() => {
     const y = new Date().getFullYear();
     return `${y}/${String(y + 1).slice(2)}`;
   });
-  const [webcalUrl, setWebcalUrl]   = useState('');
+  const [webcalUrl,   setWebcalUrl]   = useState('');
   const [webcalSaved, setWebcalSaved] = useState(false);
-  const [saving, setSaving]   = useState<string | null>(null);
-  const [adding, setAdding]   = useState(false);
+  const [saving,      setSaving]      = useState<string | null>(null);
+  const [adding,      setAdding]      = useState(false);
 
   const [newName,        setNewName]        = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newColor,       setNewColor]       = useState(COLORS[0].value);
   const [newHsId,        setNewHsId]        = useState('');
 
-  // Profil
-  const [profileName,     setProfileName]     = useState(user?.name ?? '');
-  const [profilePw,       setProfilePw]       = useState('');
-  const [profilePwRepeat, setProfilePwRepeat] = useState('');
-  const [profileSaving,   setProfileSaving]   = useState(false);
-  const [profileMsg,      setProfileMsg]      = useState('');
-
   // Brugere (admin)
-  const [orgUsers,    setOrgUsers]    = useState<OrgUser[]>([]);
-  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [orgUsers,     setOrgUsers]     = useState<OrgUser[]>([]);
+  const [usersLoaded,  setUsersLoaded]  = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserName,  setNewUserName]  = useState('');
   const [newUserRole,  setNewUserRole]  = useState<'coach' | 'admin'>('coach');
@@ -80,31 +73,6 @@ export default function SettingsPage() {
       setTimeout(() => setWebcalSaved(false), 2000);
     } finally {
       setSaving(null);
-    }
-  }
-
-  async function saveProfile() {
-    if (profilePw && profilePw !== profilePwRepeat) {
-      setProfileMsg('Adgangskoderne matcher ikke');
-      return;
-    }
-    setProfileMsg('');
-    setProfileSaving(true);
-    try {
-      const body: Record<string, string> = {};
-      if (profileName.trim() && profileName.trim() !== user?.name) body.name = profileName.trim();
-      if (profilePw) body.password = profilePw;
-      if (Object.keys(body).length === 0) { setProfileMsg('Ingen ændringer'); return; }
-
-      await api.patch('/users/me', body);
-      if (body.name) updateUser({ name: body.name });
-      setProfilePw(''); setProfilePwRepeat('');
-      setProfileMsg('Gemt ✓');
-      setTimeout(() => setProfileMsg(''), 2500);
-    } catch (e) {
-      setProfileMsg(e instanceof Error ? e.message : 'Fejl');
-    } finally {
-      setProfileSaving(false);
     }
   }
 
@@ -153,6 +121,12 @@ export default function SettingsPage() {
     }
   }
 
+  async function deleteTeam(id: string) {
+    if (!confirm('Slet holdet?')) return;
+    await api.delete(`/teams/${id}`);
+    setTeams(ts => ts.filter(t => t.id !== id));
+  }
+
   async function addTeam() {
     if (!newName.trim()) return;
     setSaving('new');
@@ -175,68 +149,11 @@ export default function SettingsPage() {
     }
   }
 
-  async function deleteTeam(id: string) {
-    if (!confirm('Slet holdet?')) return;
-    await api.delete(`/teams/${id}`);
-    setTeams(ts => ts.filter(t => t.id !== id));
-  }
-
   const inputCls = 'w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green bg-bg';
 
   return (
     <div className="px-4 pt-6 pb-8">
       <h2 className="text-xl font-bold text-text1 mb-6">Indstillinger</h2>
-
-      {/* ── Profil ─────────────────────────────────────────────────── */}
-      <section className="mb-8">
-        <h3 className="text-base font-semibold text-text1 mb-3">Profil</h3>
-        <div className="bg-bg border border-border rounded-xl p-4 flex flex-col gap-3">
-          <div>
-            <label className="block text-xs font-medium text-text2 mb-1">Email</label>
-            <p className="text-sm text-text3">{user?.email}</p>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-text2 mb-1">Navn</label>
-            <input
-              value={profileName}
-              onChange={e => setProfileName(e.target.value)}
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-text2 mb-1">Nyt kodeord</label>
-            <input
-              type="password"
-              placeholder="Minimum 6 tegn"
-              value={profilePw}
-              onChange={e => setProfilePw(e.target.value)}
-              className={inputCls}
-            />
-          </div>
-          {profilePw && (
-            <div>
-              <label className="block text-xs font-medium text-text2 mb-1">Gentag kodeord</label>
-              <input
-                type="password"
-                placeholder="Gentag kodeord"
-                value={profilePwRepeat}
-                onChange={e => setProfilePwRepeat(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-          )}
-          {profileMsg && (
-            <p className={`text-xs ${profileMsg.includes('✓') ? 'text-green' : 'text-red'}`}>{profileMsg}</p>
-          )}
-          <button
-            onClick={saveProfile}
-            disabled={profileSaving}
-            className="w-full bg-green text-white rounded-lg py-2 text-sm font-semibold disabled:opacity-50"
-          >
-            {profileSaving ? 'Gemmer…' : 'Gem profil'}
-          </button>
-        </div>
-      </section>
 
       {/* ── Hold ───────────────────────────────────────────────────── */}
       <section className="mb-8">
@@ -323,21 +240,18 @@ export default function SettingsPage() {
 
       {/* ── Brugere (kun admin) ────────────────────────────────────── */}
       {isAdmin && (
-        <section className="mb-8">
+        <section>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-base font-semibold text-text1">Brugere</h3>
             {!addingUser && (
-              <button
-                onClick={() => setAddingUser(true)}
-                className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-green text-white"
-              >
+              <button onClick={() => setAddingUser(true)}
+                className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-green text-white">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Ny bruger
               </button>
             )}
           </div>
 
-          {/* Nyt bruger-formular */}
           {addingUser && (
             <div className="bg-bg border border-border rounded-xl p-4 flex flex-col gap-3 mb-3">
               <p className="text-sm font-semibold text-text1">Ny bruger</p>
@@ -347,13 +261,9 @@ export default function SettingsPage() {
                 <label className="block text-xs font-medium text-text2 mb-1.5">Rolle</label>
                 <div className="flex rounded-lg overflow-hidden border border-border">
                   <button onClick={() => setNewUserRole('coach')}
-                    className={`flex-1 py-2 text-sm font-medium transition-colors ${newUserRole === 'coach' ? 'bg-green text-white' : 'bg-bg text-text2'}`}>
-                    Træner
-                  </button>
+                    className={`flex-1 py-2 text-sm font-medium transition-colors ${newUserRole === 'coach' ? 'bg-green text-white' : 'bg-bg text-text2'}`}>Træner</button>
                   <button onClick={() => setNewUserRole('admin')}
-                    className={`flex-1 py-2 text-sm font-medium transition-colors ${newUserRole === 'admin' ? 'bg-green text-white' : 'bg-bg text-text2'}`}>
-                    Admin
-                  </button>
+                    className={`flex-1 py-2 text-sm font-medium transition-colors ${newUserRole === 'admin' ? 'bg-green text-white' : 'bg-bg text-text2'}`}>Admin</button>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -367,7 +277,6 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Brugerliste */}
           <div className="flex flex-col gap-2">
             {orgUsers.map(u => (
               <div key={u.id} className="bg-bg border border-border rounded-xl p-4">
@@ -378,41 +287,26 @@ export default function SettingsPage() {
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${u.role === 'admin' ? 'bg-green text-white' : 'bg-bg2 text-text2'}`}>
                         {u.role === 'admin' ? 'Admin' : 'Træner'}
                       </span>
-                      {u.id === user?.id && (
-                        <span className="text-[10px] text-text3">(dig)</span>
-                      )}
+                      {u.id === user?.id && <span className="text-[10px] text-text3">(dig)</span>}
                     </div>
                     <p className="text-xs text-text3 truncate">{u.email}</p>
                   </div>
                   <div className="flex gap-1.5 shrink-0">
-                    <button
-                      onClick={() => generateInvite(u.id)}
-                      className="text-xs font-semibold px-2 py-1 rounded-lg bg-bg2 text-text2"
-                      title="Generer invitationslink"
-                    >
-                      🔗
-                    </button>
+                    <button onClick={() => generateInvite(u.id)}
+                      className="text-xs font-semibold px-2 py-1 rounded-lg bg-bg2 text-text2" title="Generer invitationslink">🔗</button>
                     {u.id !== user?.id && (
                       <button onClick={() => deleteUser(u.id)}
-                        className="text-xs px-2 py-1 rounded-lg bg-bg2 text-red">
-                        Slet
-                      </button>
+                        className="text-xs px-2 py-1 rounded-lg bg-bg2 text-red">Slet</button>
                     )}
                   </div>
                 </div>
-
-                {/* Invitationslink for denne bruger */}
                 {inviteLink?.userId === u.id && (
                   <div className="mt-3 bg-bg2 rounded-lg p-3">
                     <p className="text-[11px] font-semibold text-text2 mb-1">Invitationslink (gyldigt 7 dage)</p>
                     <div className="flex gap-2">
                       <p className="text-[11px] text-text3 flex-1 break-all">{inviteLink.url}</p>
-                      <button
-                        onClick={() => navigator.clipboard.writeText(inviteLink.url)}
-                        className="shrink-0 text-xs font-semibold text-green"
-                      >
-                        Kopiér
-                      </button>
+                      <button onClick={() => navigator.clipboard.writeText(inviteLink.url)}
+                        className="shrink-0 text-xs font-semibold text-green">Kopiér</button>
                     </div>
                   </div>
                 )}
@@ -421,21 +315,6 @@ export default function SettingsPage() {
           </div>
         </section>
       )}
-
-      {/* ── Log ud ─────────────────────────────────────────────────── */}
-      <section className="border-t border-border pt-6">
-        {user && (
-          <p className="text-text2 text-sm mb-4">
-            Logget ind som <strong className="text-text1">{user.name}</strong>
-            <span className="ml-2 text-[11px] font-medium px-2 py-0.5 rounded-full bg-bg2 text-text3">
-              {user.role === 'admin' ? 'Admin' : 'Træner'}
-            </span>
-          </p>
-        )}
-        <button onClick={logout} className="w-full border border-red text-red rounded-lg py-3 text-sm font-semibold">
-          Log ud
-        </button>
-      </section>
     </div>
   );
 }
@@ -445,7 +324,7 @@ function TeamCard({ team, saving, onSave, onDelete }: {
   team: Team; saving: boolean;
   onSave: (patch: Partial<Team>) => void; onDelete: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing,     setEditing]     = useState(false);
   const [name,        setName]        = useState(team.name);
   const [description, setDescription] = useState(team.description ?? '');
   const [color,       setColor]       = useState(team.color);

@@ -60,3 +60,74 @@ playerRoutes.patch('/:id', async (c) => {
 
   return c.json({ ok: true });
 });
+
+// GET /players/:id/teams — list team assignments for a player
+playerRoutes.get('/:id/teams', async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+
+  // Verify player belongs to this org
+  const player = await c.env.DB.prepare('SELECT id FROM players WHERE id = ? AND org_id = ?')
+    .bind(id, user.org).first();
+  if (!player) return c.json({ error: 'Not found' }, 404);
+
+  const rows = await c.env.DB.prepare(
+    'SELECT pt.team_id, pt.season, t.name, t.color FROM player_teams pt JOIN teams t ON t.id = pt.team_id WHERE pt.player_id = ?'
+  ).bind(id).all();
+
+  return c.json(rows.results);
+});
+
+// POST /players/:id/teams — add a single team assignment
+playerRoutes.post('/:id/teams', async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  const { team_id, season } = await c.req.json<{ team_id: string; season: string }>();
+  if (!team_id || !season) return c.json({ error: 'team_id and season required' }, 400);
+
+  // Verify player belongs to this org
+  const player = await c.env.DB.prepare('SELECT id FROM players WHERE id = ? AND org_id = ?')
+    .bind(id, user.org).first();
+  if (!player) return c.json({ error: 'Not found' }, 404);
+
+  // Verify team belongs to this org
+  const team = await c.env.DB.prepare('SELECT id FROM teams WHERE id = ? AND org_id = ?')
+    .bind(team_id, user.org).first();
+  if (!team) return c.json({ error: 'Team not found' }, 404);
+
+  await c.env.DB.prepare(
+    'INSERT OR IGNORE INTO player_teams (player_id, team_id, season) VALUES (?, ?, ?)'
+  ).bind(id, team_id, season).run();
+
+  return c.json({ ok: true });
+});
+
+// POST /players/:id/teams/sync — replace all team assignments for a season
+playerRoutes.post('/:id/teams/sync', async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  const { season, team_ids } = await c.req.json<{ season: string; team_ids: string[] }>();
+  if (!season || !Array.isArray(team_ids)) return c.json({ error: 'season and team_ids required' }, 400);
+
+  // Verify player belongs to this org
+  const player = await c.env.DB.prepare('SELECT id FROM players WHERE id = ? AND org_id = ?')
+    .bind(id, user.org).first();
+  if (!player) return c.json({ error: 'Not found' }, 404);
+
+  // Delete existing assignments for this season, then re-insert
+  await c.env.DB.prepare('DELETE FROM player_teams WHERE player_id = ? AND season = ?')
+    .bind(id, season).run();
+
+  for (const team_id of team_ids) {
+    // Verify each team belongs to this org
+    const team = await c.env.DB.prepare('SELECT id FROM teams WHERE id = ? AND org_id = ?')
+      .bind(team_id, user.org).first();
+    if (team) {
+      await c.env.DB.prepare(
+        'INSERT OR IGNORE INTO player_teams (player_id, team_id, season) VALUES (?, ?, ?)'
+      ).bind(id, team_id, season).run();
+    }
+  }
+
+  return c.json({ ok: true });
+});
