@@ -4,12 +4,14 @@ import { api } from '../lib/api';
 import type { Team, Coach } from '../lib/types';
 
 const COLORS = [
-  { label: 'Grøn',   value: '#1D9E75' },
-  { label: 'Blå',    value: '#185FA5' },
-  { label: 'Lilla',  value: '#7F77DD' },
-  { label: 'Rød',    value: '#A32D2D' },
-  { label: 'Orange', value: '#D97706' },
-  { label: 'Grå',    value: '#6B7280' },
+  { label: 'Grøn',       value: '#1D9E75' },
+  { label: 'Blå',        value: '#185FA5' },
+  { label: 'Lilla',      value: '#7F77DD' },
+  { label: 'Rød',        value: '#A32D2D' },
+  { label: 'Lys rød',    value: '#f56565' },
+  { label: 'Orange',     value: '#D97706' },
+  { label: 'Grå',        value: '#6B7280' },
+  { label: 'Mørk grå',   value: '#4a5568' },
 ];
 
 interface OrgUser {
