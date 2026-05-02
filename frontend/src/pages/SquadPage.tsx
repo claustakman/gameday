@@ -62,7 +62,7 @@ export default function SquadPage() {
   }
 
   const filtered = players.filter(p => {
-    if (!showInactive && p.active === 0) return false;
+    if (!showInactive && Number(p.active) !== 1) return false;
     if (yearFilter && String(p.birth_year) !== yearFilter) return false;
     return true;
   });
@@ -72,6 +72,10 @@ export default function SquadPage() {
 
   function onUpdated(updated: Player) {
     setPlayers(ps => ps.map(p => p.id === updated.id ? updated : p));
+  }
+
+  function onDeleted(id: string) {
+    setPlayers(ps => ps.filter(p => p.id !== id));
   }
 
   function onAdded(p: Player) {
@@ -156,11 +160,11 @@ export default function SquadPage() {
         )}
 
         {active.map(p => (
-          <PlayerRow key={p.id} player={p} teamMap={teamMap} teams={teams} onUpdated={onUpdated} />
+          <PlayerRow key={p.id} player={p} teamMap={teamMap} teams={teams} onUpdated={onUpdated} onDeleted={onDeleted} />
         ))}
 
         {showInactive && inactive.map(p => (
-          <PlayerRow key={p.id} player={p} teamMap={teamMap} teams={teams} onUpdated={onUpdated} />
+          <PlayerRow key={p.id} player={p} teamMap={teamMap} teams={teams} onUpdated={onUpdated} onDeleted={onDeleted} />
         ))}
       </div>
 
@@ -176,11 +180,12 @@ export default function SquadPage() {
 }
 
 /* ─── PlayerRow ──────────────────────────────────────────────────── */
-function PlayerRow({ player, teamMap, teams, onUpdated }: {
+function PlayerRow({ player, teamMap, teams, onUpdated, onDeleted }: {
   player: Player;
   teamMap: Record<string, Team>;
   teams: Team[];
   onUpdated: (p: Player) => void;
+  onDeleted: (id: string) => void;
 }) {
   const [showEdit, setShowEdit] = useState(false);
 
@@ -245,6 +250,7 @@ function PlayerRow({ player, teamMap, teams, onUpdated }: {
           teamMap={teamMap}
           onClose={() => setShowEdit(false)}
           onSaved={updated => { onUpdated(updated); setShowEdit(false); }}
+          onDeleted={id => { onDeleted(id); setShowEdit(false); }}
         />
       )}
     </>
@@ -320,12 +326,13 @@ function AddPlayerSheet({ teams, onClose, onAdded }: {
 }
 
 /* ─── EditPlayerSheet ────────────────────────────────────────────── */
-function EditPlayerSheet({ player, teams, onClose, onSaved }: {
+function EditPlayerSheet({ player, teams, onClose, onSaved, onDeleted }: {
   player: Player;
   teams: Team[];
   teamMap: Record<string, Team>;
   onClose: () => void;
   onSaved: (p: Player) => void;
+  onDeleted: (id: string) => void;
 }) {
 
   const [fullName,      setFullName]      = useState(player.full_name);
@@ -336,6 +343,8 @@ function EditPlayerSheet({ player, teams, onClose, onSaved }: {
   const [isKeeper,      setIsKeeper]      = useState(player.is_default_keeper === 1);
   const [hsUserId,      setHsUserId]      = useState(player.hs_user_id ?? '');
   const [saving,        setSaving]        = useState(false);
+  const [deleting,      setDeleting]      = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error,         setError]         = useState('');
 
   async function save() {
@@ -371,9 +380,21 @@ function EditPlayerSheet({ player, teams, onClose, onSaved }: {
   }
 
   async function toggleActive() {
-    const newActive = player.active === 1 ? 0 : 1;
+    const newActive = Number(player.active) === 1 ? 0 : 1;
     await api.patch(`/players/${player.id}`, { active: newActive });
     onSaved({ ...player, active: newActive });
+  }
+
+  async function deletePlayer() {
+    setDeleting(true);
+    try {
+      await api.delete(`/players/${player.id}`);
+      onDeleted(player.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Fejl ved sletning');
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
   }
 
   return (
@@ -390,16 +411,36 @@ function EditPlayerSheet({ player, teams, onClose, onSaved }: {
         error={error}
       />
       <div className="pt-4 border-t border-border mt-2 flex flex-col gap-2">
-        <button onClick={save} disabled={saving}
+        <button onClick={save} disabled={saving || deleting}
           className="w-full bg-green text-white rounded-xl py-3.5 font-semibold text-sm disabled:opacity-50">
           {saving ? 'Gemmer…' : 'Gem ændringer'}
         </button>
-        <button onClick={toggleActive}
-          className={`w-full border rounded-xl py-3 font-semibold text-sm ${
-            player.active === 1 ? 'border-border text-text2' : 'border-green text-green'
+        <button onClick={toggleActive} disabled={saving || deleting}
+          className={`w-full border rounded-xl py-3 font-semibold text-sm disabled:opacity-50 ${
+            Number(player.active) === 1 ? 'border-border text-text2' : 'border-green text-green'
           }`}>
-          {player.active === 1 ? 'Sæt inaktiv' : 'Sæt aktiv'}
+          {Number(player.active) === 1 ? 'Sæt inaktiv' : 'Sæt aktiv'}
         </button>
+        {!confirmDelete ? (
+          <button onClick={() => setConfirmDelete(true)} disabled={saving || deleting}
+            className="w-full rounded-xl py-3 font-semibold text-sm text-red bg-bg2 disabled:opacity-50">
+            Slet spiller
+          </button>
+        ) : (
+          <div className="bg-bg rounded-xl border border-red/30 p-3 flex flex-col gap-2">
+            <p className="text-xs text-center text-text2">Slet spilleren permanent?</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmDelete(false)}
+                className="flex-1 border border-border rounded-lg py-2 text-sm text-text2">
+                Annuller
+              </button>
+              <button onClick={deletePlayer} disabled={deleting}
+                className="flex-1 bg-red rounded-lg py-2 text-sm font-semibold text-white disabled:opacity-50">
+                {deleting ? 'Sletter…' : 'Ja, slet'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </BottomSheet>
   );

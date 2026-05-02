@@ -131,3 +131,19 @@ playerRoutes.post('/:id/teams/sync', async (c) => {
 
   return c.json({ ok: true });
 });
+
+// ── DELETE /players/:id ────────────────────────────────────────────────────
+playerRoutes.delete('/:id', async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+
+  const player = await c.env.DB.prepare('SELECT id FROM players WHERE id = ? AND org_id = ?')
+    .bind(id, user.org).first();
+  if (!player) return c.json({ error: 'Not found' }, 404);
+
+  await c.env.DB.prepare('DELETE FROM game_roster WHERE player_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM player_teams WHERE player_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM players WHERE id = ?').bind(id).run();
+
+  return c.body(null, 204);
+});

@@ -18,8 +18,8 @@ export default {
         bg:           '#ffffff',
         bg2:          '#f5f5f5',
         text1:        '#1a1a1a',
-        text2:        '#666666',
-        text3:        '#999999',
+        text2:        '#4a4a4a',
+        text3:        '#6b6b6b',
         border:       'rgba(0,0,0,0.10)',
       },
       fontFamily: {

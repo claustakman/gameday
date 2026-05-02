@@ -4,6 +4,13 @@ function getToken(): string | null {
   return localStorage.getItem('gd_token');
 }
 
+// Called on 401 — clears storage and reloads so React re-renders to LoginPage
+function handleUnauthorized() {
+  localStorage.removeItem('gd_token');
+  localStorage.removeItem('gd_user');
+  window.location.reload();
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const token = getToken();
@@ -14,6 +21,12 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+
+  if (res.status === 401 && !path.startsWith('/auth/')) {
+    handleUnauthorized();
+    // Throw so any awaiting code stops — the page will reload anyway
+    throw new Error('Session udløbet — log ind igen');
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));

@@ -19,7 +19,9 @@ gameRoutes.get('/', async (c) => {
           AND gr.player_id IS NOT NULL
           AND g2.date = g.date
           AND t2.org_id = t.org_id
-      ) THEN 1 ELSE 0 END AS has_double_booking
+      ) THEN 1 ELSE 0 END AS has_double_booking,
+      (SELECT COUNT(*) FROM game_roster WHERE game_id = g.id AND player_id IS NOT NULL) AS player_count,
+      (SELECT GROUP_CONCAT(co.name, ', ') FROM game_roster gr JOIN coaches co ON co.id = gr.coach_id WHERE gr.game_id = g.id AND gr.coach_id IS NOT NULL) AS coach_names
     FROM games g
     JOIN teams t ON t.id = g.team_id
     WHERE t.org_id = ?

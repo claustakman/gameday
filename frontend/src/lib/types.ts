@@ -34,6 +34,8 @@ export interface Game {
   motm_player_id: string | null;
   hs_activity_id: string | null;
   has_double_booking?: number;
+  player_count?: number;
+  coach_names?: string | null;
 }
 
 export interface Player {

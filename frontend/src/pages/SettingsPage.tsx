@@ -2,6 +2,18 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import type { Team, Coach } from '../lib/types';
+import HsImportGamesModal from '../components/HsImportGamesModal';
+
+interface SyncState {
+  status: 'idle' | 'loading' | 'done' | 'error';
+  message?: string;
+}
+
+interface HsTeamEntry {
+  id: number;
+  name?: string;
+  title?: string;
+}
 
 const COLORS = [
   { label: 'Grøn',       value: '#1D9E75' },
@@ -46,6 +58,16 @@ export default function SettingsPage() {
   const [newCoachHsId,  setNewCoachHsId]  = useState('');
   const [addingCoach,   setAddingCoach]   = useState(false);
   const [coachSaving,   setCoachSaving]   = useState(false);
+
+  // Holdsport sync
+  const [showImportGames,  setShowImportGames]  = useState(false);
+  const [syncPlayersState, setSyncPlayersState] = useState<SyncState>({ status: 'idle' });
+  const [hsTeamId,         setHsTeamId]         = useState('625040');
+
+  // Holdsport teams lookup (discover IDs)
+  const [hsTeams,        setHsTeams]        = useState<HsTeamEntry[] | null>(null);
+  const [hsTeamsLoading, setHsTeamsLoading] = useState(false);
+  const [hsTeamsError,   setHsTeamsError]   = useState('');
 
   // Brugere (admin)
   const [orgUsers,     setOrgUsers]     = useState<OrgUser[]>([]);
@@ -182,6 +204,52 @@ export default function SettingsPage() {
 
   const inputCls = 'w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green bg-bg';
 
+  async function fetchHsTeams() {
+    setHsTeamsLoading(true);
+    setHsTeamsError('');
+    try {
+      const data = await api.get<HsTeamEntry[] | { teams?: HsTeamEntry[] }>('/holdsport/teams');
+      const list = Array.isArray(data) ? data : (data as { teams?: HsTeamEntry[] }).teams ?? [];
+      setHsTeams(list);
+    } catch (e) {
+      setHsTeamsError(e instanceof Error ? e.message : 'Fejl');
+    } finally {
+      setHsTeamsLoading(false);
+    }
+  }
+
+
+  async function runSyncPlayers() {
+    if (!hsTeamId.trim()) return;
+    setSyncPlayersState({ status: 'loading' });
+    try {
+      const seasonTeamsList = teams.filter(t => t.season === season);
+      if (seasonTeamsList.length === 0) {
+        setSyncPlayersState({ status: 'error', message: `Ingen hold i sæson ${season}` });
+        return;
+      }
+      const res = await api.post<{
+        players: { imported: number; updated: number };
+        coaches: { imported: number; updated: number };
+        total: number;
+      }>('/holdsport/sync-players',
+        { team_id: seasonTeamsList[0].id, hs_team_id: hsTeamId.trim() }
+      );
+      const parts: string[] = [];
+      if (res.players.imported > 0) parts.push(`${res.players.imported} nye spillere`);
+      if (res.players.updated  > 0) parts.push(`${res.players.updated} spillere opdateret`);
+      if (res.coaches.imported > 0) parts.push(`${res.coaches.imported} nye trænere`);
+      if (res.coaches.updated  > 0) parts.push(`${res.coaches.updated} trænere opdateret`);
+      const summary = parts.length > 0 ? parts.join(', ') : 'Ingen ændringer';
+      setSyncPlayersState({
+        status: 'done',
+        message: `${summary} (${res.total} i alt fra Holdsport)`,
+      });
+    } catch (e) {
+      setSyncPlayersState({ status: 'error', message: e instanceof Error ? e.message : 'Fejl' });
+    }
+  }
+
   return (
     <div className="px-4 pt-6" style={{ paddingBottom: 'calc(2rem + 4rem + env(safe-area-inset-bottom))' }}>
       <h2 className="text-xl font-bold text-text1 mb-6">Indstillinger</h2>
@@ -271,28 +339,61 @@ export default function SettingsPage() {
 
       {/* ── Holdsport ──────────────────────────────────────────────── */}
       <section className="mb-8">
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className="text-base font-semibold text-text1">Holdsport</h3>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-bg2 text-text3 uppercase tracking-wide">Kommer snart</span>
-        </div>
+        <h3 className="text-base font-semibold text-text1 mb-1">Holdsport</h3>
         <p className="text-xs text-text2 mb-4">Synkronisér kampe og spillere direkte fra Holdsport</p>
-        <div className="flex flex-col gap-2">
-          <button disabled
-            className="w-full flex items-center gap-3 bg-bg border border-border rounded-xl px-4 py-3.5 opacity-40 cursor-not-allowed">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text2 shrink-0"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-text1">Synkronisér kampe</p>
-              <p className="text-xs text-text3">Hent kampprogram fra Holdsport</p>
+
+        {/* Holdsport trup-ID */}
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-text2 mb-1.5">
+            Holdsport trup-ID
+            <button onClick={fetchHsTeams} disabled={hsTeamsLoading}
+              className="ml-2 text-green font-semibold disabled:opacity-50">
+              {hsTeamsLoading ? 'henter…' : '(slå op)'}
+            </button>
+          </label>
+          <input
+            value={hsTeamId}
+            onChange={e => { setHsTeamId(e.target.value); setSyncPlayersState({ status: 'idle' }); }}
+            placeholder="fx 625040"
+            className={inputCls}
+          />
+          {hsTeamsError && <p className="text-xs text-red mt-1">{hsTeamsError}</p>}
+          {hsTeams && (
+            <div className="mt-2 flex flex-col gap-1">
+              {hsTeams.map(t => (
+                <button key={t.id} onClick={() => setHsTeamId(String(t.id))}
+                  className={`flex items-center justify-between bg-bg2 rounded-lg px-3 py-2 text-left ${String(t.id) === hsTeamId ? 'ring-2 ring-green' : ''}`}>
+                  <span className="text-sm text-text1">{t.name || t.title || '(unavngivet)'}</span>
+                  <span className="font-mono text-xs font-bold text-text2">{t.id}</span>
+                </button>
+              ))}
             </div>
-          </button>
-          <button disabled
-            className="w-full flex items-center gap-3 bg-bg border border-border rounded-xl px-4 py-3.5 opacity-40 cursor-not-allowed">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text2 shrink-0"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-text1">Synkronisér spillere</p>
-              <p className="text-xs text-text3">Importér spillerliste fra Holdsport</p>
-            </div>
-          </button>
+          )}
+        </div>
+
+        {/* Sync buttons */}
+        <div className="flex flex-col gap-3">
+          {/* Import games — opens picker modal */}
+          <div className="bg-bg border border-border rounded-xl px-4 py-3.5">
+            <p className="text-sm font-semibold text-text1 mb-0.5">Importer kampe</p>
+            <p className="text-xs text-text3 mb-3">Vælg periode og marker hvilke aktiviteter der er kampe</p>
+            <button
+              onClick={() => setShowImportGames(true)}
+              disabled={!hsTeamId.trim() || seasonTeams.length === 0}
+              className="w-full bg-green text-white rounded-lg py-2 text-sm font-semibold disabled:opacity-50"
+            >
+              Vælg kampe at importere →
+            </button>
+          </div>
+
+          <HsSyncButton
+            title="Synkronisér spillere"
+            description="Importér spillerliste fra Holdsport-truppen"
+            state={syncPlayersState}
+            onSync={runSyncPlayers}
+            onReset={() => setSyncPlayersState({ status: 'idle' })}
+            disabled={!hsTeamId.trim() || seasonTeams.length === 0}
+          />
         </div>
       </section>
 
@@ -420,6 +521,19 @@ export default function SettingsPage() {
           </div>
         </section>
       )}
+
+      {/* ── Holdsport import modal ─────────────────────────────────── */}
+      {showImportGames && (
+        <HsImportGamesModal
+          hsTeamId={hsTeamId}
+          teams={seasonTeams}
+          onImported={(count) => {
+            setShowImportGames(false);
+            if (count > 0) alert(`${count} kamp${count !== 1 ? 'e' : ''} importeret`);
+          }}
+          onClose={() => setShowImportGames(false)}
+        />
+      )}
     </div>
   );
 }
@@ -537,6 +651,43 @@ function TeamCard({ team, saving, onSave, onDelete }: {
           {saving ? 'Gemmer…' : 'Gem'}
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ─── HsSyncButton ────────────────────────────────────────────────────── */
+function HsSyncButton({ title, description, state, onSync, onReset, disabled }: {
+  title: string;
+  description: string;
+  state: SyncState;
+  onSync: () => void;
+  onReset: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="bg-bg border border-border rounded-xl px-4 py-3.5">
+      <p className="text-sm font-semibold text-text1 mb-0.5">{title}</p>
+      <p className="text-xs text-text3 mb-3">{description}</p>
+      {state.status === 'done' && (
+        <div className="mb-3 bg-green-light rounded-lg px-3 py-2 flex items-start gap-2">
+          <span className="text-green shrink-0">✓</span>
+          <p className="text-xs text-green-dark">{state.message}</p>
+        </div>
+      )}
+      {state.status === 'error' && (
+        <div className="mb-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p className="text-xs text-red">{state.message}</p>
+        </div>
+      )}
+      <button
+        onClick={state.status === 'done' || state.status === 'error' ? onReset : onSync}
+        disabled={state.status === 'loading' || disabled}
+        className="w-full bg-green text-white rounded-lg py-2 text-sm font-semibold disabled:opacity-50"
+      >
+        {state.status === 'loading' ? 'Synkroniserer…' :
+         state.status === 'done' || state.status === 'error' ? 'Synkronisér igen' :
+         'Synkronisér nu'}
+      </button>
     </div>
   );
 }
