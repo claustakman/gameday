@@ -11,6 +11,7 @@ import { statsRoutes } from './routes/stats';
 import { holdsportRoutes } from './routes/holdsport';
 import { seasonRoutes } from './routes/seasons';
 import { userRoutes } from './routes/users';
+import { standingRoutes } from './routes/standing';
 import { authMiddleware } from './middleware/auth';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -34,6 +35,7 @@ app.use('/coaches/*', authMiddleware);
 app.use('/stats/*', authMiddleware);
 app.use('/holdsport/*', authMiddleware);
 app.use('/seasons/*', authMiddleware);
+app.use('/standing/*', authMiddleware);
 
 app.route('/users', userRoutes);
 app.route('/teams', teamRoutes);
@@ -43,6 +45,7 @@ app.route('/coaches', coachRoutes);
 app.route('/stats', statsRoutes);
 app.route('/holdsport', holdsportRoutes);
 app.route('/seasons', seasonRoutes);
+app.route('/standing', standingRoutes);
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 app.onError((err, c) => {

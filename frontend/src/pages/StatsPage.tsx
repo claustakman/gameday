@@ -141,8 +141,8 @@ export default function StatsPage() {
                 <div className="flex items-center gap-2 px-1 pb-2 border-b border-border">
                   <div className="flex-1 min-w-0" />
                   <span className="text-[10px] font-semibold text-text3 w-10 text-center">Kampe</span>
-                  <span className="text-[10px] font-semibold text-text3 w-10 text-center">Fremmøde</span>
-                  <span className="text-[10px] font-semibold text-text3 w-8 text-center">⭐</span>
+                  <span className="text-[10px] font-semibold text-text3 w-10 text-center">Procent</span>
+                  <span className="text-[10px] font-semibold text-text3 w-8 text-center">🧸</span>
                 </div>
 
                 {playerStats.map((p, i) => {
@@ -186,7 +186,7 @@ export default function StatsPage() {
                       <div className="w-8 text-center">
                         {p.motm_count > 0 ? (
                           <span className={`text-xs font-bold ${isTopMOTM ? 'text-green' : 'text-text2'}`}>
-                            {p.motm_count > 1 ? `×${p.motm_count}` : '⭐'}
+                            {p.motm_count > 1 ? `×${p.motm_count}` : '🧸'}
                           </span>
                         ) : (
                           <span className="text-text3 text-xs">—</span>
@@ -244,7 +244,7 @@ export default function StatsPage() {
                     <div className="flex-1 min-w-0">
                       <span className="text-sm text-text1 truncate block">{g.opponent}</span>
                       {motmPlayer && (
-                        <span className="text-[10px] text-text3">⭐ {motmPlayer.nickname ?? motmPlayer.full_name}</span>
+                        <span className="text-[10px] text-text3">🧸 {motmPlayer.nickname ?? motmPlayer.full_name}</span>
                       )}
                     </div>
                     {g.result_us !== null && (

@@ -10,6 +10,7 @@ import GameDetailPage from './pages/GameDetailPage';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 import SquadPage from './pages/SquadPage';
 import ProfilePage from './pages/ProfilePage';
+import StandingPage from './pages/StandingPage';
 
 function AppShell() {
   const { token } = useAuth();
@@ -28,6 +29,7 @@ function AppShell() {
           <Route path="/games" element={<GamesPage />} />
           <Route path="/games/:id" element={<GameDetailPage />} />
           <Route path="/stats" element={<StatsPage />} />
+          <Route path="/standing" element={<StandingPage />} />
           <Route path="/squad" element={<SquadPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />

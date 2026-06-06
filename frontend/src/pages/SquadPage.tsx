@@ -67,8 +67,8 @@ export default function SquadPage() {
     return true;
   });
 
-  const active   = sorted(filtered.filter(p => p.active === 1));
-  const inactive = sorted(filtered.filter(p => p.active === 0));
+  const active   = sorted(filtered.filter(p => Number(p.active) === 1));
+  const inactive = sorted(filtered.filter(p => Number(p.active) !== 1));
 
   function onUpdated(updated: Player) {
     setPlayers(ps => ps.map(p => p.id === updated.id ? updated : p));
@@ -128,7 +128,7 @@ export default function SquadPage() {
           ))}
           {years.length > 0 && <span className="w-px bg-border shrink-0 mx-1" />}
           <ChipButton active={showInactive} onClick={() => setShowInactive(s => !s)}>
-            Inaktive{showInactive && players.filter(p => p.active === 0).length > 0 ? ` (${players.filter(p => p.active === 0).length})` : ''}
+            Inaktive{showInactive && players.filter(p => Number(p.active) !== 1).length > 0 ? ` (${players.filter(p => Number(p.active) !== 1).length})` : ''}
           </ChipButton>
         </div>
 
@@ -148,22 +148,21 @@ export default function SquadPage() {
 
       {/* Liste */}
       <div className="flex-1 px-4 py-3 flex flex-col gap-1">
-        {active.length === 0 && inactive.length === 0 && (
-          <p className="text-center text-text3 text-sm pt-12">
-            {yearFilter ? `Ingen spillere fra ${yearFilter}` : 'Ingen spillere endnu — tilføj den første'}
-          </p>
+        {showInactive && inactive.length === 0 && (
+          <p className="text-center text-text3 text-sm pt-12">Ingen inaktive spillere</p>
         )}
-        {active.length === 0 && inactive.length > 0 && !showInactive && (
+        {!showInactive && active.length === 0 && inactive.length > 0 && (
           <p className="text-center text-text3 text-sm pt-12">
             Ingen aktive spillere{yearFilter ? ` fra ${yearFilter}` : ''} — tryk <span className="font-semibold">Inaktive</span> for at se dem
           </p>
         )}
+        {!showInactive && active.length === 0 && inactive.length === 0 && (
+          <p className="text-center text-text3 text-sm pt-12">
+            {yearFilter ? `Ingen spillere fra ${yearFilter}` : 'Ingen spillere endnu — tilføj den første'}
+          </p>
+        )}
 
-        {active.map(p => (
-          <PlayerRow key={p.id} player={p} teamMap={teamMap} teams={teams} onUpdated={onUpdated} onDeleted={onDeleted} />
-        ))}
-
-        {showInactive && inactive.map(p => (
+        {(showInactive ? inactive : active).map(p => (
           <PlayerRow key={p.id} player={p} teamMap={teamMap} teams={teams} onUpdated={onUpdated} onDeleted={onDeleted} />
         ))}
       </div>
@@ -200,7 +199,7 @@ function PlayerRow({ player, teamMap, teams, onUpdated, onDeleted }: {
     <>
       <button
         onClick={() => setShowEdit(true)}
-        className={`w-full text-left bg-bg rounded-xl border border-border px-4 py-3 flex items-center gap-3 active:bg-bg2 transition-colors ${player.active === 0 ? 'opacity-50' : ''}`}
+        className={`w-full text-left bg-bg rounded-xl border border-border px-4 py-3 flex items-center gap-3 active:bg-bg2 transition-colors ${Number(player.active) !== 1 ? 'opacity-50' : ''}`}
       >
         {/* Avatar */}
         <div
@@ -232,7 +231,7 @@ function PlayerRow({ player, teamMap, teams, onUpdated, onDeleted }: {
             {player.is_default_keeper === 1 && (
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-bg2 text-text2">Keeper</span>
             )}
-            {player.active === 0 && (
+            {Number(player.active) !== 1 && (
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-bg2 text-text3">Inaktiv</span>
             )}
           </div>

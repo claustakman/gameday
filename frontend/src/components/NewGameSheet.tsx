@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { api } from '../lib/api';
 import type { Team } from '../lib/types';
 
@@ -27,9 +27,23 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
   const [opponent,   setOpponent]   = useState('');
   const [location,   setLocation]   = useState('');
   const [isHome,     setIsHome]     = useState(true);
+  const [tag,        setTag]        = useState('turnering');
   const [focuses,    setFocuses]    = useState([{ ...EMPTY_FOCUS }]);
   const [saving,     setSaving]     = useState(false);
   const [error,      setError]      = useState('');
+
+  // Tag autocomplete
+  const [tagOptions,    setTagOptions]    = useState<string[]>([]);
+  const [tagOpen,       setTagOpen]       = useState(false);
+  const [tagsFetched,   setTagsFetched]   = useState(false);
+  const tagBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function ensureTags() {
+    if (tagsFetched) return;
+    try { const res = await api.get<string[]>('/games/tags'); setTagOptions(res); } catch { /* silent */ }
+    setTagsFetched(true);
+  }
+  const tagFiltered = tagOptions.filter(t => t.toLowerCase().includes(tag.toLowerCase()) && t !== tag);
 
   useEffect(() => {
     setTeamId(seasonTeams[0]?.id ?? '');
@@ -63,6 +77,7 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
         opponent: opponent.trim(),
         location: location.trim() || null,
         is_home: isHome,
+        tag: tag.trim() || 'turnering',
       });
 
       // Gem fokuspunkter hvis udfyldt
@@ -191,6 +206,35 @@ export default function NewGameSheet({ teams, onCreated, onClose }: Props) {
                 onChange={e => setLocation(e.target.value)}
                 className={inputCls}
               />
+            </Field>
+
+            <Field label="Tag">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="turnering, træningskamp…"
+                  value={tag}
+                  onChange={e => { setTag(e.target.value); setTagOpen(true); }}
+                  onFocus={() => { ensureTags(); setTagOpen(true); }}
+                  onBlur={() => { tagBlurTimer.current = setTimeout(() => setTagOpen(false), 150); }}
+                  className={inputCls}
+                />
+                {tagOpen && (tagFiltered.length > 0 || (!tag && tagOptions.length > 0)) && (
+                  <ul className="absolute left-0 right-0 top-full mt-1 z-10 bg-bg border border-border rounded-lg shadow-lg overflow-hidden">
+                    {(tag ? tagFiltered : tagOptions).map(t => (
+                      <li key={t}>
+                        <button
+                          type="button"
+                          onMouseDown={() => { setTag(t); setTagOpen(false); }}
+                          className="w-full text-left px-3 py-2 text-sm text-text1 hover:bg-bg2"
+                        >
+                          {t}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </Field>
 
             {/* Fokuspunkter */}

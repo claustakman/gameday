@@ -128,12 +128,12 @@ export default function GameDetailPage() {
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs text-text3">{isHome ? 'Hjemme vs.' : 'Ude mod'}</span>
               {team && (
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: color }}>
                   {team.name}
                 </span>
               )}
+              <span className="text-xs text-text3">{isHome ? 'hjemme vs.' : 'ude mod'}</span>
             </div>
             <h1 className="text-2xl font-bold text-text1 leading-tight">{game.opponent}</h1>
           </div>
@@ -224,6 +224,9 @@ export default function GameDetailPage() {
           </section>
         )}
 
+        {/* Noter */}
+        <NotesSection game={game} onSaved={updated => setGame(updated)} />
+
         {/* Evaluering */}
         {(game.went_well || game.went_bad) && (
           <section>
@@ -295,17 +298,10 @@ export default function GameDetailPage() {
             </p>
           )}
 
-          {doubleBooked.length > 0 && (
-            <div className="mb-3 bg-bg rounded-xl border border-red/30 px-3 py-2.5 flex items-start gap-2">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red shrink-0 mt-0.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              <div>
-                <p className="text-xs font-semibold text-red mb-0.5">Dobbeltbooking</p>
-                {doubleBooked.map(db => (
-                  <p key={db.player_id} className="text-xs text-text2">{db.name} spiller også for {db.other_team_name}</p>
-                ))}
-              </div>
-            </div>
-          )}
+          <WarningBox
+            noKeeper={roster.filter(r => r.player_id).length > 0 && !roster.some(r => r.is_keeper === 1)}
+            doubleBooked={doubleBooked}
+          />
 
           {/* Trænere */}
           {roster.filter(r => r.coach_id).map(entry => (
@@ -332,7 +328,12 @@ export default function GameDetailPage() {
             <p className="text-xs text-text3 py-2">Ingen spillere tilføjet endnu</p>
           ) : roster.filter(r => r.player_id).length === 0 ? null : (
             <div className="flex flex-col gap-1.5">
-              {roster.filter(r => r.player_id).map(entry => {
+              {[...roster.filter(r => r.player_id)].sort((a, b) => {
+                if (a.shirt_number != null && b.shirt_number != null) return a.shirt_number - b.shirt_number;
+                if (a.shirt_number != null) return -1;
+                if (b.shirt_number != null) return 1;
+                return (a.player_name ?? '').localeCompare(b.player_name ?? '');
+              }).map(entry => {
                 const isDoubleBooked = doubleBooked.some(db => db.player_id === entry.player_id);
                 return (
                   <div
@@ -357,6 +358,11 @@ export default function GameDetailPage() {
                         )}
                       </p>
                     </div>
+
+                    {/* Fidus */}
+                    {game.motm_player_id === entry.player_id && (
+                      <span className="shrink-0 text-base leading-none" title="Fidus — dagens spiller">🧸</span>
+                    )}
 
                     {/* Keeper toggle */}
                     <button
@@ -400,6 +406,19 @@ export default function GameDetailPage() {
           >
             {game.result_us !== null ? `Ret resultat (${game.result_us}–${game.result_them})` : 'Log resultat'}
           </button>
+          {game.status !== 'archived' ? (
+            <ArchiveButton gameId={game.id} onArchived={() => setGame(g => g ? { ...g, status: 'archived' } : g)} />
+          ) : (
+            <button
+              onClick={async () => {
+                await api.patch(`/games/${game.id}`, { status: 'planned' });
+                setGame(g => g ? { ...g, status: 'planned' } : g);
+              }}
+              className="w-full rounded-xl py-3 font-semibold text-sm text-text3 bg-bg2"
+            >
+              Fjern arkivering
+            </button>
+          )}
         </div>
       </div>
 
@@ -408,6 +427,7 @@ export default function GameDetailPage() {
         <ResultSheet
           game={game}
           color={color}
+          teamName={team?.name ?? null}
           roster={roster}
           onClose={() => setShowResult(false)}
           onSaved={updated => { setGame(updated); setShowResult(false); }}
@@ -442,9 +462,10 @@ export default function GameDetailPage() {
 }
 
 /* ─── Result sheet ────────────────────────────────────────────────── */
-function ResultSheet({ game, color, roster, onClose, onSaved }: {
+function ResultSheet({ game, color, teamName, roster, onClose, onSaved }: {
   game: Game;
   color: string;
+  teamName: string | null;
   roster: RosterEntry[];
   onClose: () => void;
   onSaved: (g: Game) => void;
@@ -480,64 +501,103 @@ function ResultSheet({ game, color, roster, onClose, onSaved }: {
   }
 
   return (
-    <BottomSheet title="Resultat" onClose={onClose} scrollable>
-      {/* Score — side-by-side, fixed width */}
-      <div className="flex items-end gap-3 mb-5">
-        <div className="w-0 flex-1 flex flex-col gap-1">
-          <span className="text-[10px] font-semibold text-text3 uppercase tracking-wide text-center">Hjemme</span>
-          <input
-            type="number" inputMode="numeric" min="0" placeholder="0"
-            value={resultUs} onChange={e => setResultUs(e.target.value)}
-            className="w-full border border-border rounded-xl px-2 py-3 text-2xl font-bold text-center text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg"
-          />
-        </div>
-        <span className="text-xl font-bold text-text3 shrink-0 pb-3">–</span>
-        <div className="w-0 flex-1 flex flex-col gap-1">
-          <span className="text-[10px] font-semibold text-text3 uppercase tracking-wide text-center">Ude</span>
-          <input
-            type="number" inputMode="numeric" min="0" placeholder="0"
-            value={resultThem} onChange={e => setResultThem(e.target.value)}
-            className="w-full border border-border rounded-xl px-2 py-3 text-2xl font-bold text-center text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg"
-          />
-        </div>
+    <div className="fixed inset-0 z-[60] bg-bg flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border shrink-0"
+        style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
+      >
+        <h3 className="text-lg font-bold text-text1">Resultat</h3>
+        <button onClick={onClose} className="text-text3 p-1">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
+      {/* Scroll-indhold */}
+      <div className="flex-1 overflow-y-auto px-4 py-4" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {/* Score — side-by-side med holdnavne */}
+      {(() => {
+        const isHome = game.is_home === 1;
+        // Hjemmebane altid til venstre
+        const leftLabel  = isHome ? (teamName ?? 'Os')  : game.opponent;
+        const rightLabel = isHome ? game.opponent        : (teamName ?? 'Os');
+        const leftValue  = isHome ? resultUs   : resultThem;
+        const rightValue = isHome ? resultThem : resultUs;
+        const setLeft    = isHome
+          ? (v: string) => setResultUs(v)
+          : (v: string) => setResultThem(v);
+        const setRight   = isHome
+          ? (v: string) => setResultThem(v)
+          : (v: string) => setResultUs(v);
+        return (
+          <div className="flex items-end gap-3 mb-5">
+            <div className="w-0 flex-1 flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-text3 uppercase tracking-wide text-center truncate">{leftLabel}</span>
+              <input
+                type="number" inputMode="numeric" min="0" placeholder="0"
+                value={leftValue} onChange={e => setLeft(e.target.value)}
+                className="w-full border border-border rounded-xl px-2 py-3 text-2xl font-bold text-center text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg"
+              />
+            </div>
+            <span className="text-xl font-bold text-text3 shrink-0 pb-3">–</span>
+            <div className="w-0 flex-1 flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-text3 uppercase tracking-wide text-center truncate">{rightLabel}</span>
+              <input
+                type="number" inputMode="numeric" min="0" placeholder="0"
+                value={rightValue} onChange={e => setRight(e.target.value)}
+                className="w-full border border-border rounded-xl px-2 py-3 text-2xl font-bold text-center text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg"
+              />
+            </div>
+          </div>
+        );
+      })()}
 
-      {/* MOTM — kompakt chip-grid */}
+      {/* Fidus — to-kolonner grid */}
       {rosterPlayers.length > 0 && (
         <>
-          <p className="text-xs font-medium text-text2 mb-2">Dagens spiller — MOTM (valgfri)</p>
-          <div className="flex flex-wrap gap-2 mb-4">
+          <p className="text-xs font-medium text-text2 mb-2">Fidus — dagens spiller (valgfri)</p>
+          <div className="grid grid-cols-2 gap-1.5 mb-4">
             {/* Ingen */}
             <button
               onClick={() => setMotmId(null)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-xs font-semibold transition-colors ${
-                motmId === null ? 'bg-bg2 border-border text-text1' : 'border-transparent text-text3'
+              className={`col-span-2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-colors ${
+                motmId === null ? 'bg-bg2 border-border text-text1' : 'bg-bg border-border text-text3'
               }`}
             >
-              <span>Ingen</span>
+              Ingen fidus
             </button>
-            {rosterPlayers.map(entry => {
+            {[...rosterPlayers].sort((a, b) => {
+              if (a.shirt_number != null && b.shirt_number != null) return a.shirt_number - b.shirt_number;
+              if (a.shirt_number != null) return -1;
+              if (b.shirt_number != null) return 1;
+              return (a.player_name ?? '').localeCompare(b.player_name ?? '');
+            }).map(entry => {
               const selected = motmId === entry.player_id;
+              // Short name: number + first name + first letter of last name
+              const parts = (entry.nickname ?? entry.player_name ?? '').trim().split(' ');
+              const shortName = parts.length > 1
+                ? `${parts[0]} ${parts[parts.length - 1][0]}.`
+                : parts[0];
               return (
                 <button
                   key={entry.id}
                   onClick={() => setMotmId(selected ? null : entry.player_id!)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-xs font-semibold transition-colors`}
+                  className="flex items-center gap-2 px-2.5 py-2 rounded-xl border text-xs font-semibold transition-colors text-left"
                   style={selected
-                    ? { backgroundColor: color + '20', borderColor: color, color }
-                    : { borderColor: 'transparent', color: 'var(--color-text2)' }
+                    ? { backgroundColor: color + '18', borderColor: color, color }
+                    : { backgroundColor: 'var(--color-bg)', borderColor: 'var(--color-border)', color: 'var(--color-text2)' }
                   }
                 >
                   <div
-                    className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: selected ? color : color + '40', color: '#fff' }}
+                    className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-white"
+                    style={{ backgroundColor: selected ? color : color + '50' }}
                   >
                     <span className="text-[9px] font-bold leading-none">
                       {entry.shirt_number != null ? entry.shirt_number : initials(entry.player_name ?? '')}
                     </span>
                   </div>
-                  <span>{entry.nickname ?? entry.player_name}</span>
-                  {selected && <span className="text-xs">⭐</span>}
+                  <span className="truncate flex-1">{shortName}</span>
+                  {selected && <span className="shrink-0">🧸</span>}
                 </button>
               );
             })}
@@ -549,7 +609,7 @@ function ResultSheet({ game, color, roster, onClose, onSaved }: {
       <textarea
         placeholder="Hvad fungerede?"
         value={wentWell} onChange={e => setWentWell(e.target.value)}
-        rows={2}
+        rows={4}
         className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg resize-none mb-3"
       />
 
@@ -557,7 +617,7 @@ function ResultSheet({ game, color, roster, onClose, onSaved }: {
       <textarea
         placeholder="Hvad skal vi arbejde på?"
         value={wentBad} onChange={e => setWentBad(e.target.value)}
-        rows={2}
+        rows={4}
         className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg resize-none mb-4"
       />
 
@@ -569,7 +629,56 @@ function ResultSheet({ game, color, roster, onClose, onSaved }: {
       >
         {saving ? 'Gemmer…' : 'Gem resultat'}
       </button>
-    </BottomSheet>
+      </div>
+    </div>
+  );
+}
+
+/* ─── TagInput ────────────────────────────────────────────────────── */
+function TagInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [tags,     setTags]     = useState<string[]>([]);
+  const [open,     setOpen]     = useState(false);
+  const [fetched,  setFetched]  = useState(false);
+
+  async function ensureTags() {
+    if (fetched) return;
+    try {
+      const res = await api.get<string[]>('/games/tags');
+      setTags(res);
+    } catch { /* silent */ }
+    setFetched(true);
+  }
+
+  const inputCls = 'w-full border border-border rounded-lg px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg';
+  const filtered = tags.filter(t => t.toLowerCase().includes(value.toLowerCase()) && t !== value);
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        placeholder="turnering, træningskamp…"
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => { ensureTags(); setOpen(true); }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className={inputCls}
+      />
+      {open && (filtered.length > 0 || (tags.length > 0 && !value)) && (
+        <ul className="absolute left-0 right-0 top-full mt-1 z-10 bg-bg border border-border rounded-lg shadow-lg overflow-hidden">
+          {(value ? filtered : tags).map(t => (
+            <li key={t}>
+              <button
+                type="button"
+                onMouseDown={() => { onChange(t); setOpen(false); }}
+                className="w-full text-left px-3 py-2 text-sm text-text1 hover:bg-bg2"
+              >
+                {t}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -591,6 +700,7 @@ function EditSheet({ game, teams, color, onClose, onSaved, onDeleted }: {
   const [location,   setLocation]   = useState(game.location ?? '');
   const [isHome,     setIsHome]     = useState(game.is_home === 1);
   const [teamId,     setTeamId]     = useState(game.team_id);
+  const [tag,        setTag]        = useState(game.tag ?? 'turnering');
   const [deleting,   setDeleting]   = useState(false);
   const [confirms,   setConfirms]   = useState(false);
   const [focuses, setFocuses] = useState<{ focus: string; goal: string }[]>(() => {
@@ -620,6 +730,7 @@ function EditSheet({ game, teams, color, onClose, onSaved, onDeleted }: {
         opponent: opponent.trim(),
         location: location.trim() || null,
         is_home: isHome ? 1 : 0,
+        tag: tag.trim() || 'turnering',
       });
 
       const filled = focuses.filter(f => f.focus.trim());
@@ -636,6 +747,7 @@ function EditSheet({ game, teams, color, onClose, onSaved, onDeleted }: {
         ...game, team_id: teamId, date, time: time || null,
         meetup_time: meetupTime || null, opponent: opponent.trim(),
         location: location.trim() || null, is_home: isHome ? 1 : 0,
+        tag: tag.trim() || 'turnering',
         focus_1: filled[0]?.focus.trim() ?? null, goal_1: filled[0]?.goal.trim() ?? null,
         focus_2: filled[1]?.focus.trim() ?? null, goal_2: filled[1]?.goal.trim() ?? null,
         focus_3: filled[2]?.focus.trim() ?? null, goal_3: filled[2]?.goal.trim() ?? null,
@@ -711,6 +823,12 @@ function EditSheet({ game, teams, color, onClose, onSaved, onDeleted }: {
         <div>
           <label className="block text-xs font-medium text-text2 mb-1.5">Lokation (valgfri)</label>
           <input type="text" placeholder="Bane, adresse…" value={location} onChange={e => setLocation(e.target.value)} className={inputCls} />
+        </div>
+
+        {/* Tag */}
+        <div>
+          <label className="block text-xs font-medium text-text2 mb-1.5">Tag</label>
+          <TagInput value={tag} onChange={setTag} />
         </div>
 
         {/* Fokuspunkter */}
@@ -942,6 +1060,150 @@ function AddToRosterSheet({ allPlayers, rosterPlayerIds, teams, fallbackColor, o
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Warning box ────────────────────────────────────────────────── */
+function WarningBox({ noKeeper, doubleBooked }: {
+  noKeeper: boolean;
+  doubleBooked: { player_id: string; name: string; other_team_name: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const count = (noKeeper ? 1 : 0) + (doubleBooked.length > 0 ? 1 : 0);
+  if (count === 0) return null;
+
+  return (
+    <div className="mb-3">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-yellow-50 border border-yellow-200 text-left"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="text-yellow-500 shrink-0">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13" stroke="white" strokeWidth="2"/>
+          <line x1="12" y1="17" x2="12.01" y2="17" stroke="white" strokeWidth="2"/>
+        </svg>
+        <span className="flex-1 text-xs font-semibold text-yellow-800">
+          {count === 1
+            ? (noKeeper ? 'Ingen keeper markeret' : 'Dobbeltbooking')
+            : `${count} advarsler`}
+        </span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          className={`text-yellow-600 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div className="mt-1 px-3 py-2.5 rounded-xl border border-yellow-200 bg-yellow-50 flex flex-col gap-2">
+          {noKeeper && (
+            <div className="flex items-center gap-2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-500 shrink-0">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <p className="text-xs text-orange-700 font-medium">Ingen keeper markeret til denne kamp</p>
+            </div>
+          )}
+          {doubleBooked.length > 0 && (
+            <div className="flex items-start gap-2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red shrink-0 mt-0.5">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <div>
+                <p className="text-xs font-semibold text-red mb-0.5">Dobbeltbooking</p>
+                {doubleBooked.map(db => (
+                  <p key={db.player_id} className="text-xs text-text2">{db.name} spiller også for {db.other_team_name}</p>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Notes section ──────────────────────────────────────────────── */
+function NotesSection({ game, onSaved }: { game: Game; onSaved: (g: Game) => void }) {
+  const [notes,   setNotes]   = useState(game.notes ?? '');
+  const [saving,  setSaving]  = useState(false);
+  const [dirty,   setDirty]   = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.patch(`/games/${game.id}`, { notes: notes.trim() || null });
+      onSaved({ ...game, notes: notes.trim() || null });
+      setDirty(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section>
+      <SectionTitle>Noter</SectionTitle>
+      <textarea
+        placeholder="Tilføj noter til kampen…"
+        value={notes}
+        onChange={e => { setNotes(e.target.value); setDirty(true); }}
+        rows={5}
+        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg resize-none"
+      />
+      {dirty && (
+        <button
+          onClick={save}
+          disabled={saving}
+          className="mt-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-green disabled:opacity-50"
+        >
+          {saving ? 'Gemmer…' : 'Gem noter'}
+        </button>
+      )}
+    </section>
+  );
+}
+
+/* ─── Archive button ──────────────────────────────────────────────── */
+function ArchiveButton({ gameId, onArchived }: { gameId: string; onArchived: () => void }) {
+  const [confirm,   setConfirm]   = useState(false);
+  const [archiving, setArchiving] = useState(false);
+
+  if (!confirm) {
+    return (
+      <button
+        onClick={() => setConfirm(true)}
+        className="w-full rounded-xl py-3 font-semibold text-sm text-text3 bg-bg2"
+      >
+        Arkivér kamp
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-bg rounded-xl border border-border p-3 flex flex-col gap-2">
+      <p className="text-xs text-center text-text2">Arkivér kampen? Den forbliver tilgængelig med 'Arkiveret'-filteret.</p>
+      <div className="flex gap-2">
+        <button onClick={() => setConfirm(false)} className="flex-1 border border-border rounded-lg py-2 text-sm text-text2">
+          Annuller
+        </button>
+        <button
+          onClick={async () => {
+            setArchiving(true);
+            try {
+              await api.patch(`/games/${gameId}`, { status: 'archived' });
+              onArchived();
+            } finally {
+              setArchiving(false);
+            }
+          }}
+          disabled={archiving}
+          className="flex-1 bg-text3 rounded-lg py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {archiving ? 'Arkiverer…' : 'Arkivér'}
+        </button>
       </div>
     </div>
   );

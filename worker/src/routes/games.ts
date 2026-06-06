@@ -21,7 +21,10 @@ gameRoutes.get('/', async (c) => {
           AND t2.org_id = t.org_id
       ) THEN 1 ELSE 0 END AS has_double_booking,
       (SELECT COUNT(*) FROM game_roster WHERE game_id = g.id AND player_id IS NOT NULL) AS player_count,
-      (SELECT GROUP_CONCAT(co.name, ', ') FROM game_roster gr JOIN coaches co ON co.id = gr.coach_id WHERE gr.game_id = g.id AND gr.coach_id IS NOT NULL) AS coach_names
+      (SELECT GROUP_CONCAT(co.name, ', ') FROM game_roster gr JOIN coaches co ON co.id = gr.coach_id WHERE gr.game_id = g.id AND gr.coach_id IS NOT NULL) AS coach_names,
+      CASE WHEN (SELECT COUNT(*) FROM game_roster WHERE game_id = g.id AND player_id IS NOT NULL) > 0
+           AND (SELECT COUNT(*) FROM game_roster WHERE game_id = g.id AND player_id IS NOT NULL AND is_keeper = 1) = 0
+           THEN 1 ELSE 0 END AS has_no_keeper
     FROM games g
     JOIN teams t ON t.id = g.team_id
     WHERE t.org_id = ?
@@ -33,7 +36,7 @@ gameRoutes.get('/', async (c) => {
   if (status)  { sql += ' AND g.status = ?';  params.push(status); }
   if (opponent) { sql += " AND g.opponent LIKE ?"; params.push(`%${opponent}%`); }
 
-  sql += ' ORDER BY g.date DESC';
+  sql += ' ORDER BY g.date ASC, g.time ASC';
 
   const games = await c.env.DB.prepare(sql).bind(...params).all();
   return c.json(games.results);
@@ -43,7 +46,7 @@ gameRoutes.post('/', async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{
     team_id: string; date: string; time?: string; meetup_time?: string;
-    opponent: string; location?: string; is_home?: boolean;
+    opponent: string; location?: string; is_home?: boolean; tag?: string;
   }>();
   if (!body.team_id || !body.date || !body.opponent) return c.json({ error: 'Missing fields' }, 400);
 
@@ -53,14 +56,31 @@ gameRoutes.post('/', async (c) => {
   if (!team) return c.json({ error: 'Team not found' }, 404);
 
   const id = uuid();
-  const season = body.date.slice(0, 4); // derive season year from date, adjust as needed
+  const season = body.date.slice(0, 4);
   await c.env.DB.prepare(`
-    INSERT INTO games (id, team_id, season, date, time, meetup_time, opponent, location, is_home, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO games (id, team_id, season, date, time, meetup_time, opponent, location, is_home, tag, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(id, body.team_id, season, body.date, body.time ?? null, body.meetup_time ?? null,
-    body.opponent, body.location ?? null, body.is_home !== false ? 1 : 0, now()).run();
+    body.opponent, body.location ?? null, body.is_home !== false ? 1 : 0,
+    body.tag ?? 'turnering', now()).run();
 
   return c.json({ id }, 201);
+});
+
+// ── GET /games/tags — distinct tags used in this org ──────────────────────
+gameRoutes.get('/tags', async (c) => {
+  const user = c.get('user');
+  const res = await c.env.DB.prepare(`
+    SELECT DISTINCT g.tag FROM games g
+    JOIN teams t ON t.id = g.team_id
+    WHERE t.org_id = ? AND g.tag IS NOT NULL AND g.tag != ''
+    ORDER BY g.tag ASC
+  `).bind(user.org).all<{ tag: string }>();
+  const tags = res.results.map(r => r.tag);
+  // Ensure defaults are always present
+  const defaults = ['turnering', 'træningskamp'];
+  const merged = [...new Set([...defaults, ...tags])].sort();
+  return c.json(merged);
 });
 
 gameRoutes.get('/:id', async (c) => {
@@ -82,7 +102,7 @@ gameRoutes.patch('/:id', async (c) => {
 
   const allowed = ['team_id','date','time','meetup_time','opponent','location','is_home','status',
     'result_us','result_them','focus_1','focus_2','focus_3','goal_1','goal_2','goal_3',
-    'went_well','went_bad','motm_player_id'];
+    'went_well','went_bad','motm_player_id','tag','notes'];
 
   const fields = Object.entries(body).filter(([k]) => allowed.includes(k));
   if (fields.length === 0) return c.json({ error: 'Nothing to update' }, 400);

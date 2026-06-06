@@ -4,7 +4,7 @@
  * Step 2: review filtered activities, assign to app team, pick which to import
  */
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { api } from '../lib/api';
 import type { Team } from '../lib/types';
 
@@ -13,6 +13,8 @@ interface HsActivity {
   name?: string;
   starttime?: string;
   place?: string;
+  event_type_id?: number;  // 1=Kamp, 2=Træning, 4=Stævne
+  event_type?: string;
 }
 
 interface ActivityRow {
@@ -21,6 +23,7 @@ interface ActivityRow {
   teamId: string;
   opponent: string;
   isHome: boolean;
+  tag: string;
 }
 
 function parseLocalTime(ts?: string): { date: string; time: string | null } {
@@ -54,21 +57,29 @@ function addDays(s: string, days: number) {
   return d.toISOString().slice(0, 10);
 }
 
-// Extract opponent from "... Ajax København - Holte ..." given the team name
+function teamMatches(titleSide: string, teamName: string): boolean {
+  const t = titleSide.toLowerCase();
+  const n = teamName.toLowerCase();
+  if (n.includes(t) || t.includes(n)) return true;
+  const words = t.split(/\s+/).filter(w => w.length > 1);
+  return words.length > 0 && words.every(w => n.includes(w));
+}
+
 function guessOpponent(name: string, teamName: string): { opponent: string; isHome: boolean } {
-  const dashIdx = name.indexOf(' - ');
-  if (dashIdx === -1) return { opponent: name, isHome: true };
-  const left  = name.slice(0, dashIdx).trim();
-  const right = name.slice(dashIdx + 3).trim();
+  // Strip prefix before ": "
+  const withoutPrefix = name.includes(': ') ? name.split(': ').slice(1).join(': ') : name;
+  // Strip trailing parenthetical
+  const clean = withoutPrefix.replace(/\s*\([^)]*\)\s*$/, '').trim();
 
-  // Strip prefix before last space-surrounded colon
-  const cleanLeft  = left.includes(': ')  ? left.split(': ').slice(1).join(': ').trim()  : left;
-  const cleanRight = right.includes(': ') ? right.split(': ').slice(1).join(': ').trim() : right;
+  const dashIdx = clean.indexOf(' - ');
+  if (dashIdx === -1) return { opponent: clean, isHome: true };
 
-  const tLower = teamName.toLowerCase();
-  if (cleanLeft.toLowerCase().includes(tLower)) return { opponent: cleanRight, isHome: true };
-  if (cleanRight.toLowerCase().includes(tLower)) return { opponent: cleanLeft, isHome: false };
-  return { opponent: cleanRight, isHome: true };
+  const left  = clean.slice(0, dashIdx).trim();
+  const right = clean.slice(dashIdx + 3).trim();
+
+  if (teamMatches(left, teamName))  return { opponent: right, isHome: true };
+  if (teamMatches(right, teamName)) return { opponent: left,  isHome: false };
+  return { opponent: right, isHome: true };
 }
 
 export default function HsImportGamesModal({
@@ -89,25 +100,38 @@ export default function HsImportGamesModal({
 
   const [rows, setRows] = useState<ActivityRow[]>([]);
 
+  // Tag autocomplete
+  const [tagOptions,  setTagOptions]  = useState<string[]>([]);
+  const [tagsFetched, setTagsFetched] = useState(false);
+  const [openTagIdx,  setOpenTagIdx]  = useState<number | null>(null);
+  const tagBlurRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function ensureTags() {
+    if (tagsFetched) return;
+    try { const res = await api.get<string[]>('/games/tags'); setTagOptions(res); } catch { /* silent */ }
+    setTagsFetched(true);
+  }
+
 
   async function fetchActivities() {
     setLoading(true);
     setError('');
     try {
       const data = await api.get<{ preview: HsActivity[] } | HsActivity[]>(
-        `/holdsport/activities/${hsTeamId}`
+        `/holdsport/activities/${hsTeamId}?per_page=100`
       );
       const all: HsActivity[] = Array.isArray(data) ? data : (data as { preview: HsActivity[] }).preview ?? [];
 
       // Sort teams by name length descending so "Ajax København 2" is checked before "Ajax København"
       const sortedTeams = [...teams].sort((a, b) => b.name.length - a.name.length);
-      const teamNames = sortedTeams.map(t => t.name.toLowerCase());
 
-      // Filter: must contain at least one team name
+      // Filter: event_type_id 1=Kamp, 4=Stævne — or fallback to title parsing for older data
       const filtered = all.filter(a => {
+        if (!((a.name || '').includes(' - '))) return false;
+        if (a.event_type_id !== undefined) return a.event_type_id === 1 || a.event_type_id === 4;
+        // Fallback: require a team name in the title
         const n = (a.name || '').toLowerCase();
-        if (!n.includes(' - ')) return false; // must have separator
-        return teamNames.some(tn => n.includes(tn));
+        return sortedTeams.some(t => n.includes(t.name.toLowerCase()));
       });
 
       // Also filter by date range
@@ -134,6 +158,7 @@ export default function HsImportGamesModal({
           teamId: matchedTeam.id,
           opponent,
           isHome,
+          tag: 'turnering',
         };
       });
 
@@ -161,6 +186,7 @@ export default function HsImportGamesModal({
           location: r.act.place || null,
           date,
           time,
+          tag: r.tag.trim() || 'turnering',
         };
       });
       const res = await api.post<{ imported: number; skipped: number }>('/holdsport/import-games', { items });
@@ -281,6 +307,34 @@ export default function HsImportGamesModal({
                               Ude
                             </button>
                           </div>
+                        </div>
+                        {/* Tag */}
+                        <div className="relative">
+                          <input
+                            value={row.tag}
+                            onChange={e => { updateRow(idx, { tag: e.target.value }); setOpenTagIdx(idx); }}
+                            onFocus={() => { ensureTags(); setOpenTagIdx(idx); }}
+                            onBlur={() => { tagBlurRef.current = setTimeout(() => setOpenTagIdx(null), 150); }}
+                            placeholder="Tag (fx turnering)"
+                            className="w-full border border-border rounded-lg px-2 py-1.5 text-xs bg-bg focus:outline-none focus:ring-2 focus:ring-green"
+                          />
+                          {openTagIdx === idx && tagOptions.length > 0 && (() => {
+                            const filtered = tagOptions.filter(t => t.toLowerCase().includes(row.tag.toLowerCase()) && t !== row.tag);
+                            const opts = row.tag ? filtered : tagOptions;
+                            return opts.length > 0 ? (
+                              <ul className="absolute left-0 right-0 top-full mt-1 z-20 bg-bg border border-border rounded-lg shadow-lg overflow-hidden">
+                                {opts.map(t => (
+                                  <li key={t}>
+                                    <button type="button"
+                                      onMouseDown={() => { updateRow(idx, { tag: t }); setOpenTagIdx(null); }}
+                                      className="w-full text-left px-3 py-2 text-xs text-text1 hover:bg-bg2">
+                                      {t}
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null;
+                          })()}
                         </div>
                         {/* Date info */}
                         <p className="text-[11px] text-text3">Dato: {date}</p>

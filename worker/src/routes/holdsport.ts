@@ -27,6 +27,8 @@ interface HsActivity {
   endtime?: string;
   place?: string;
   location?: string;
+  event_type_id?: number;  // 1=Kamp, 2=Træning, 4=Stævne
+  event_type?: string;
   activities_users?: HsActivityUser[];
 }
 
@@ -65,49 +67,67 @@ function parseHsTime(ts?: string): { date: string; time: string | null } {
 //                        "Kamp: Ajax København 2 - Holte 2"
 //                        "Træning U13 Hafnia"  ← not a game
 
+// Returns true if a title-side matches an app team name.
+// "Ajax 2" matches "Ajax København 2" because all words in the title-side appear in the team name.
+function teamMatches(titleSide: string, teamName: string): boolean {
+  const t = titleSide.toLowerCase();
+  const n = teamName.toLowerCase();
+  if (n.includes(t) || t.includes(n)) return true;
+  // Word-subset match: every word in titleSide appears in teamName
+  const words = t.split(/\s+/).filter(w => w.length > 1);
+  return words.length > 0 && words.every(w => n.includes(w));
+}
+
 // Returns null if activity is not a game
 function parseActivity(activity: HsActivity, appTeams: { id: string; name: string }[]): {
   opponent: string;
   isHome: boolean;
   location: string | null;
-  teamId: string | null;  // matched app team id, or null = unmatched (assign manually)
+  teamId: string | null;
 } | null {
   const title = (activity.name || activity.title || '').trim();
   const place = activity.place || activity.location || null;
 
-  // Must contain " - " to be a game (separator between our team and opponent)
+  // Primary filter: use event_type_id if present (1=Kamp, 4=Stævne)
+  if (activity.event_type_id !== undefined) {
+    if (activity.event_type_id !== 1 && activity.event_type_id !== 4) return null;
+  } else {
+    // Fallback for older data without event_type_id: require game-type prefix or team name in title
+    const isGameType = /^(kamp|træningskamp|stævne|cup|turneringskamp)/i.test(title);
+    const containsTeamName = appTeams.some(t => title.toLowerCase().includes(t.name.toLowerCase()));
+    if (!isGameType && !containsTeamName) return null;
+  }
+
+  // Must contain " - " to be parseable as home - away
   if (!title.includes(' - ')) return null;
-  // Must start with a game-type prefix or contain a known team name
-  const isGameType = /^(kamp|træningskamp|stævne|cup|turneringskamp)/i.test(title);
-  const containsTeamName = appTeams.some(t => title.toLowerCase().includes(t.name.toLowerCase()));
-  if (!isGameType && !containsTeamName) return null;
 
   // Strip prefix (everything before and including ": ")
   const withoutPrefix = title.includes(': ') ? title.split(': ').slice(1).join(': ') : title;
 
-  // Split on " - " → ["Ajax København 2", "Holte 2"]
-  const dashIdx = withoutPrefix.indexOf(' - ');
+  // Strip trailing parenthetical "(Træningskamp i Fløng)" etc.
+  const clean = withoutPrefix.replace(/\s*\([^)]*\)\s*$/, '').trim();
+
+  const dashIdx = clean.indexOf(' - ');
   if (dashIdx === -1) return null;
 
-  const leftTeam  = withoutPrefix.slice(0, dashIdx).trim();
-  const rightTeam = withoutPrefix.slice(dashIdx + 3).trim();
+  const leftTeam  = clean.slice(0, dashIdx).trim();
+  const rightTeam = clean.slice(dashIdx + 3).trim();
 
-  // Find which app team is on the left (we are home) or right (we are away)
+  // Sort longest name first to avoid "Ajax København" matching before "Ajax København 2"
+  const sortedTeams = [...appTeams].sort((a, b) => b.name.length - a.name.length);
+
   let matchedTeamId: string | null = null;
   let opponent = '';
   let isHome = true;
 
-  // Sort longest name first to avoid "Ajax København" matching before "Ajax København 2"
-  const sortedTeams = [...appTeams].sort((a, b) => b.name.length - a.name.length);
   for (const t of sortedTeams) {
-    const tLower = t.name.toLowerCase();
-    if (leftTeam.toLowerCase().includes(tLower) || tLower.includes(leftTeam.toLowerCase())) {
+    if (teamMatches(leftTeam, t.name)) {
       matchedTeamId = t.id;
       opponent = rightTeam;
       isHome = true;
       break;
     }
-    if (rightTeam.toLowerCase().includes(tLower) || tLower.includes(rightTeam.toLowerCase())) {
+    if (teamMatches(rightTeam, t.name)) {
       matchedTeamId = t.id;
       opponent = leftTeam;
       isHome = false;
@@ -115,22 +135,13 @@ function parseActivity(activity: HsActivity, appTeams: { id: string; name: strin
     }
   }
 
-  // If no team matched, use left side as "our team" and right as opponent
+  // If no team matched, default: left = us (home), right = opponent
   if (!matchedTeamId) {
     opponent = rightTeam;
     isHome = true;
   }
 
   return { opponent: opponent || rightTeam || title, isHome, location: place, teamId: matchedTeamId };
-}
-
-// ── Birth year extraction ───────────────────────────────────────────────────
-
-function extractBirthYear(birthday?: string): number | null {
-  if (!birthday) return null;
-  // Formats: "2012-03-15", "15/03/2012", "2012"
-  const match = birthday.match(/\b(19|20)\d{2}\b/);
-  return match ? parseInt(match[0]) : null;
 }
 
 // ── GET /holdsport/teams ────────────────────────────────────────────────────
@@ -202,19 +213,29 @@ holdsportRoutes.get('/activity-debug/:activity_id', async (c) => {
 
 holdsportRoutes.get('/activities/:hs_team_id', async (c) => {
   const hsTeamId = c.req.param('hs_team_id');
+  const raw_keys = c.req.query('raw_keys') === '1';
+  const page = c.req.query('page') ?? '1';
+  const per_page = c.req.query('per_page') ?? '50';
   let data: unknown;
   try {
-    data = await hsFetch(`/teams/${hsTeamId}/activities`, c.env);
+    data = await hsFetch(`/teams/${hsTeamId}/activities?page=${page}&per_page=${per_page}`, c.env);
   } catch (e) {
     return c.json({ error: String(e) }, 502);
   }
-  const raw = data as Record<string, unknown>;
-  const activities = Array.isArray(data) ? data : Array.isArray(raw.activities) ? raw.activities : data;
-  // Return first 10 with just the fields we care about
-  const preview = (Array.isArray(activities) ? activities : []).map((a: Record<string, unknown>) => ({
-    id: a.id, name: a.name, title: a.title, starttime: a.starttime, place: a.place,
+  const rawData = data as Record<string, unknown>;
+  const activities = Array.isArray(data) ? data : Array.isArray(rawData.activities) ? rawData.activities : data;
+  const arr = Array.isArray(activities) ? activities as Record<string, unknown>[] : [];
+
+  // ?raw_keys=1 → return all top-level keys + full first activity for inspection
+  if (raw_keys && arr.length > 0) {
+    return c.json({ keys: Object.keys(arr[0]), first: arr[0] });
+  }
+
+  const preview = arr.map((a: Record<string, unknown>) => ({
+    id: a.id, name: a.name, starttime: a.starttime, place: a.place,
+    event_type: a.event_type, event_type_id: a.event_type_id,
   }));
-  return c.json({ total: Array.isArray(activities) ? activities.length : '?', preview });
+  return c.json({ total: arr.length, preview });
 });
 
 // ── POST /holdsport/sync-games ──────────────────────────────────────────────
@@ -296,6 +317,7 @@ interface ImportGameItem {
   opponent: string;
   is_home: boolean;
   location?: string | null;
+  tag?: string;
   date: string;
   time?: string | null;
 }
@@ -520,8 +542,8 @@ holdsportRoutes.post('/sync-game-players', async (c) => {
   for (const u of attendingPlayers) {
     const hsUserId = String(u.user_id ?? u.id);
     const player = await c.env.DB.prepare(
-      'SELECT id FROM players WHERE hs_user_id = ? AND org_id = ?'
-    ).bind(hsUserId, user.org).first<{ id: string }>();
+      'SELECT id, is_default_keeper FROM players WHERE hs_user_id = ? AND org_id = ?'
+    ).bind(hsUserId, user.org).first<{ id: string; is_default_keeper: number }>();
     if (!player) continue;
 
     const onRoster = await c.env.DB.prepare(
@@ -529,9 +551,10 @@ holdsportRoutes.post('/sync-game-players', async (c) => {
     ).bind(game_id, player.id).first();
     if (onRoster) continue;
 
+    const isKeeper = player.is_default_keeper === 1 ? 1 : 0;
     await c.env.DB.prepare(
-      'INSERT INTO game_roster (id, game_id, player_id, is_keeper, created_at) VALUES (?, ?, ?, 0, ?)'
-    ).bind(uuid(), game_id, player.id, now()).run();
+      'INSERT INTO game_roster (id, game_id, player_id, is_keeper, created_at) VALUES (?, ?, ?, ?, ?)'
+    ).bind(uuid(), game_id, player.id, isKeeper, now()).run();
     added++;
   }
 
@@ -555,4 +578,113 @@ holdsportRoutes.post('/sync-game-players', async (c) => {
   }
 
   return c.json({ added, removed, total: attendingPlayers.length + attendingCoaches.length });
+});
+
+// ── POST /holdsport/bulk-update-games ──────────────────────────────────────
+// For all games with hs_activity_id in the org: update time + location,
+// and sync attending players/coaches. Returns summary.
+
+holdsportRoutes.post('/bulk-update-games', async (c) => {
+  const user = c.get('user');
+
+  // Get all games with hs_activity_id for this org
+  const gamesRes = await c.env.DB.prepare(`
+    SELECT g.id, g.hs_activity_id FROM games g
+    JOIN teams t ON t.id = g.team_id
+    WHERE t.org_id = ? AND g.hs_activity_id IS NOT NULL AND g.status = 'planned'
+  `).bind(user.org).all<{ id: string; hs_activity_id: string }>();
+
+  const games = gamesRes.results;
+  let updated = 0;
+  let playersAdded = 0;
+  let playersRemoved = 0;
+  const errors: string[] = [];
+
+  for (const game of games) {
+    try {
+      const data = await hsFetch(`/activities/${game.hs_activity_id}`, c.env);
+      const activity = (Array.isArray(data) ? data[0] : data) as HsActivityFull;
+      if (!activity) continue;
+
+      // Update time + location
+      const { time } = parseHsTime(activity.starttime);
+      const location = activity.place || null;
+      await c.env.DB.prepare(
+        'UPDATE games SET time = ?, location = ? WHERE id = ?'
+      ).bind(time, location, game.id).run();
+
+      // Sync attending players
+      const attendingPlayers = (activity.activities_users ?? []).filter(u => u.status_code === 1);
+      const attendingCoaches = (activity.activities_coaches ?? []).filter(u => u.status_code === 1);
+      const attendingPlayerHsIds = new Set(attendingPlayers.map(u => String(u.user_id ?? u.id)));
+      const attendingCoachHsIds  = new Set(attendingCoaches.map(u => String(u.user_id ?? u.id)));
+
+      // Remove players no longer attending
+      const currentPlayers = await c.env.DB.prepare(`
+        SELECT gr.id, p.hs_user_id FROM game_roster gr
+        JOIN players p ON p.id = gr.player_id
+        WHERE gr.game_id = ? AND gr.player_id IS NOT NULL
+      `).bind(game.id).all<{ id: string; hs_user_id: string | null }>();
+      for (const entry of currentPlayers.results) {
+        if (entry.hs_user_id && !attendingPlayerHsIds.has(entry.hs_user_id)) {
+          await c.env.DB.prepare('DELETE FROM game_roster WHERE id = ?').bind(entry.id).run();
+          playersRemoved++;
+        }
+      }
+
+      // Remove coaches no longer attending
+      const currentCoaches = await c.env.DB.prepare(`
+        SELECT gr.id, co.hs_user_id FROM game_roster gr
+        JOIN coaches co ON co.id = gr.coach_id
+        WHERE gr.game_id = ? AND gr.coach_id IS NOT NULL
+      `).bind(game.id).all<{ id: string; hs_user_id: string | null }>();
+      for (const entry of currentCoaches.results) {
+        if (entry.hs_user_id && !attendingCoachHsIds.has(entry.hs_user_id)) {
+          await c.env.DB.prepare('DELETE FROM game_roster WHERE id = ?').bind(entry.id).run();
+          playersRemoved++;
+        }
+      }
+
+      // Add new attending players
+      for (const u of attendingPlayers) {
+        const hsUserId = String(u.user_id ?? u.id);
+        const player = await c.env.DB.prepare(
+          'SELECT id, is_default_keeper FROM players WHERE hs_user_id = ? AND org_id = ?'
+        ).bind(hsUserId, user.org).first<{ id: string; is_default_keeper: number }>();
+        if (!player) continue;
+        const onRoster = await c.env.DB.prepare(
+          'SELECT id FROM game_roster WHERE game_id = ? AND player_id = ?'
+        ).bind(game.id, player.id).first();
+        if (onRoster) continue;
+        const isKeeper = player.is_default_keeper === 1 ? 1 : 0;
+        await c.env.DB.prepare(
+          'INSERT INTO game_roster (id, game_id, player_id, is_keeper, created_at) VALUES (?, ?, ?, ?, ?)'
+        ).bind(uuid(), game.id, player.id, isKeeper, now()).run();
+        playersAdded++;
+      }
+
+      // Add new attending coaches
+      for (const u of attendingCoaches) {
+        const hsUserId = String(u.user_id ?? u.id);
+        const coach = await c.env.DB.prepare(
+          'SELECT id FROM coaches WHERE hs_user_id = ? AND org_id = ?'
+        ).bind(hsUserId, user.org).first<{ id: string }>();
+        if (!coach) continue;
+        const onRoster = await c.env.DB.prepare(
+          'SELECT id FROM game_roster WHERE game_id = ? AND coach_id = ?'
+        ).bind(game.id, coach.id).first();
+        if (onRoster) continue;
+        await c.env.DB.prepare(
+          'INSERT INTO game_roster (id, game_id, coach_id, is_keeper, created_at) VALUES (?, ?, ?, 0, ?)'
+        ).bind(uuid(), game.id, coach.id, now()).run();
+        playersAdded++;
+      }
+
+      updated++;
+    } catch (e) {
+      errors.push(`${game.hs_activity_id}: ${String(e)}`);
+    }
+  }
+
+  return c.json({ updated, playersAdded, playersRemoved, total: games.length, errors });
 });

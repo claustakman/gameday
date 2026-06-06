@@ -33,7 +33,7 @@ teamRoutes.patch('/:id', async (c) => {
   const body = await c.req.json<Partial<{ name: string; description: string; color: string; season: string; hs_team_id: string }>>();
 
   const fields = Object.entries(body)
-    .filter(([k]) => ['name', 'description', 'color', 'season', 'hs_team_id'].includes(k))
+    .filter(([k]) => ['name', 'description', 'color', 'season', 'hs_team_id', 'standing_url'].includes(k))
     .map(([k, v]) => ({ k, v }));
 
   if (fields.length === 0) return c.json({ error: 'Nothing to update' }, 400);

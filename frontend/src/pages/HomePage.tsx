@@ -216,7 +216,7 @@ function RecentResultRow({ game, team, onClick }: { game: Game; team?: Team; onC
         <div className="shrink-0 flex flex-col items-end gap-0.5">
           <span className={`text-lg font-bold leading-tight ${resultColor}`}>{us}–{them}</span>
           <span className={`text-[10px] font-semibold ${resultColor}`}>{resultLabel}</span>
-          {game.motm_player_id && <span className="text-[10px] text-text3">⭐ MOTM</span>}
+          {game.motm_player_id && <span className="text-[10px] text-text3">🧸 Fidus</span>}
         </div>
       )}
     </button>

@@ -23,7 +23,12 @@ playerRoutes.get('/', async (c) => {
   sql += ' ORDER BY p.full_name ASC';
 
   const players = await c.env.DB.prepare(sql).bind(...params).all();
-  return c.json(players.results);
+  // Ensure active is always an integer (D1 can sometimes return booleans)
+  const results = (players.results as Record<string, unknown>[]).map(p => ({
+    ...p,
+    active: p.active === true ? 1 : p.active === false ? 0 : Number(p.active),
+  }));
+  return c.json(results);
 });
 
 playerRoutes.post('/', async (c) => {

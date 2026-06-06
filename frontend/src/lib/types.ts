@@ -5,6 +5,20 @@ export interface Team {
   color: string;
   season: string;
   hs_team_id: string | null;
+  standing_url: string | null;
+}
+
+export interface StandingRow {
+  priority: number;
+  teamId: number;
+  teamName: string;
+  matchCount: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  points: number;
 }
 
 export interface Game {
@@ -33,9 +47,12 @@ export interface Game {
   went_bad: string | null;
   motm_player_id: string | null;
   hs_activity_id: string | null;
+  notes: string | null;
   has_double_booking?: number;
+  has_no_keeper?: number;
   player_count?: number;
   coach_names?: string | null;
+  tag?: string | null;
 }
 
 export interface Player {

@@ -193,7 +193,7 @@ export default function SettingsPage() {
       });
       setTeams(ts => [...ts, {
         id, name: newName.trim(), description: newDescription.trim() || null,
-        color: newColor, season, hs_team_id: newHsId.trim() || null,
+        color: newColor, season, hs_team_id: newHsId.trim() || null, standing_url: null,
       }]);
       setNewName(''); setNewDescription(''); setNewColor(COLORS[0].value); setNewHsId('');
       setAdding(false);
@@ -602,9 +602,10 @@ function TeamCard({ team, saving, onSave, onDelete }: {
   const [description, setDescription] = useState(team.description ?? '');
   const [color,       setColor]       = useState(team.color);
   const [hsId,        setHsId]        = useState(team.hs_team_id ?? '');
+  const [standingUrl, setStandingUrl] = useState(team.standing_url ?? '');
 
   function save() {
-    onSave({ name: name.trim() || team.name, description: description.trim() || null, color, hs_team_id: hsId.trim() || null });
+    onSave({ name: name.trim() || team.name, description: description.trim() || null, color, hs_team_id: hsId.trim() || null, standing_url: standingUrl.trim() || null });
     setEditing(false);
   }
 
@@ -619,6 +620,7 @@ function TeamCard({ team, saving, onSave, onDelete }: {
             <p className="font-semibold text-text1 text-sm">{team.name}</p>
             {team.description && <p className="text-xs text-text2">{team.description}</p>}
             {team.hs_team_id && <p className="text-xs text-text3">HS: {team.hs_team_id}</p>}
+            {team.standing_url && <p className="text-xs text-text3 truncate">Stilling: {team.standing_url}</p>}
           </div>
         </div>
         <div className="flex gap-2">
@@ -634,6 +636,7 @@ function TeamCard({ team, saving, onSave, onDelete }: {
       <input value={name} onChange={e => setName(e.target.value)} placeholder="Navn" className={inputCls} />
       <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Beskrivelse (valgfri)" className={inputCls} />
       <input value={hsId} onChange={e => setHsId(e.target.value)} placeholder="Holdsport ID (valgfri)" className={inputCls} />
+      <input value={standingUrl} onChange={e => setStandingUrl(e.target.value)} placeholder="Stillingsurl (danskhaandbold.dk/puljer/…)" className={inputCls} />
       <div>
         <p className="text-xs text-text2 mb-1.5">Farve</p>
         <div className="flex gap-2 flex-wrap">
