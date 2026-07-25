@@ -8,8 +8,6 @@ import StatsPage from './pages/StatsPage';
 import SettingsPage from './pages/SettingsPage';
 import GameDetailPage from './pages/GameDetailPage';
 import AcceptInvitePage from './pages/AcceptInvitePage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
-import ResetPasswordPage from './pages/ResetPasswordPage';
 import SquadPage from './pages/SquadPage';
 import ProfilePage from './pages/ProfilePage';
 import StandingPage from './pages/StandingPage';
@@ -17,17 +15,9 @@ import StandingPage from './pages/StandingPage';
 function AppShell() {
   const { token } = useAuth();
 
-  // Invite and password-reset pages are always public — no auth required
+  // Invite page is always public — no auth required
   if (window.location.pathname.startsWith('/invite/')) {
     return <Routes><Route path="/invite/:token" element={<AcceptInvitePage />} /></Routes>;
-  }
-  if (window.location.pathname === '/forgot-password' || window.location.pathname.startsWith('/reset-password/')) {
-    return (
-      <Routes>
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-      </Routes>
-    );
   }
 
   if (!token) return <LoginPage />;

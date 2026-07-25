@@ -2,5 +2,3 @@
 JWT_SECRET=your-local-dev-secret-min-32-chars
 HOLDSPORT_USER=your-holdsport-username
 HOLDSPORT_PASS=your-holdsport-password
-RESEND_API_KEY=your-resend-api-key
-RESEND_FROM_EMAIL=Gameday <onboarding@resend.dev>

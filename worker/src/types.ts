@@ -5,8 +5,6 @@ export interface Env {
   HOLDSPORT_USER: string;
   HOLDSPORT_PASS: string;
   CORS_ORIGIN: string;
-  RESEND_API_KEY: string;
-  RESEND_FROM_EMAIL: string;
 }
 
 export interface JWTPayload {

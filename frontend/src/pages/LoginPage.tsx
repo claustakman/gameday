@@ -62,9 +62,6 @@ export default function LoginPage() {
           >
             {loading ? 'Logger ind…' : 'Log ind'}
           </button>
-          <a href="/forgot-password" className="text-center text-xs text-text3 hover:text-green">
-            Glemt kodeord?
-          </a>
         </form>
       </div>
     </div>
