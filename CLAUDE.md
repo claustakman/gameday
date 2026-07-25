@@ -51,6 +51,13 @@ Felter: `id`, `org_id`, `name`, `hs_user_id`.
 ### users
 Felter: `id`, `org_id`, `email`, `name`, `password_hash`, `role` ('admin'|'coach').
 - `invite_tokens`: single-use, 7 dages udløb, oprettes af admin
+- `password_reset_tokens`: single-use, 1 times udløb, oprettes via `/auth/forgot-password`. Migration: `0010_password_reset_tokens.sql`
+
+## Email
+Udgående email (glemt kodeord) sendes via Resend HTTP API (`worker/src/lib/email.ts`, ingen SDK — rå `fetch`).
+Kræver Worker Secret `RESEND_API_KEY` + var `RESEND_FROM_EMAIL` (default `Gameday <onboarding@resend.dev>`,
+kun brugbar i Resend test-mode — kræver verificeret domæne for at sende til vilkårlige modtagere i produktion).
+Reset-link bygges fra `CORS_ORIGIN` (frontend base-URL).
 
 ## API
 Alle ruter kræver `Authorization: Bearer <JWT>` undtagen `/auth/*` og `/invite/:token`.
@@ -58,6 +65,9 @@ JWT signeres med `JWT_SECRET` (Worker Secret), levetid 30 dage.
 CORS tillader kun `https://gameday-b2x.pages.dev`.
 
 ### Vigtige ruter
+- `POST /auth/forgot-password` — `{ email }`, altid samme generiske svar. Genererer reset-token (1 times udløb) + sender email. Rate-limit: max 3 anmodninger/15 min pr. bruger
+- `GET /auth/reset-password-info/:token` — valider token før visning af reset-formular (public)
+- `POST /auth/reset-password` — `{ token, password }` — sætter nyt kodeord, markerer token brugt (public)
 - `GET/POST /players` — hent/opret spillere (query: active, season, team_id). Returnerer active som integer (normaliseret fra D1)
 - `PATCH /players/:id` — opdater spiller (inkl. shirt_number, primary_team_id, active)
 - `DELETE /players/:id` — slet spiller (fjerner også game_roster + player_teams entries)
@@ -141,6 +151,8 @@ Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
 - `/profile`   → ProfilePage — rediger navn/kodeord, logout
 - `/settings`  → SettingsPage — hold (inkl. standing_url), webcal, trænere, Holdsport, brugere (admin)
 - `/invite/:token` → AcceptInvitePage — public, accepter invitation
+- `/forgot-password` → ForgotPasswordPage — public, anmod om reset-link via email
+- `/reset-password/:token` → ResetPasswordPage — public, vælg nyt kodeord
 
 ### Design-tokens (Tailwind)
 `bg-bg` (#fff), `bg-bg2` (#f5f5f5), `text-text1` (#1a1a1a), `text-text2` (#4a4a4a), `text-text3` (#6b6b6b),
