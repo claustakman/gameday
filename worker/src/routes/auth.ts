@@ -1,8 +1,16 @@
 import { Hono } from 'hono';
+import { generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
+import { isoBase64URL } from '@simplewebauthn/server/helpers';
+import type { AuthenticationResponseJSON, AuthenticatorTransportFuture } from '@simplewebauthn/server';
 import { Env, JWTPayload } from '../types';
 import { signJWT } from '../db/jwt';
+import { now } from '../db/utils';
+import { rpConfig, saveChallenge, consumeChallenge } from '../lib/webauthn';
 
 export const authRoutes = new Hono<{ Bindings: Env; Variables: { user: JWTPayload } }>();
+
+type UserAuthRow = { id: string; org_id: string; email: string; name: string; role: string };
+type CredentialRow = { id: string; public_key: string; counter: number; transports: string | null };
 
 // ── POST /auth/accept-invite  (public — set password via invite token) ─
 authRoutes.post('/accept-invite', async (c) => {
@@ -47,6 +55,88 @@ authRoutes.post('/login', async (c) => {
   const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
   if (hashHex !== user.password_hash) return c.json({ error: 'Invalid credentials' }, 401);
+
+  const token = await signJWT(
+    { sub: user.id, org: user.org_id, role: user.role as 'admin' | 'coach' },
+    c.env.JWT_SECRET
+  );
+
+  return c.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+});
+
+// ── POST /auth/webauthn/login-options  (public — start Face ID/Touch ID login) ─
+authRoutes.post('/webauthn/login-options', async (c) => {
+  const { email } = await c.req.json<{ email: string }>();
+  const generic = { error: 'Face ID/Touch ID er ikke sat op for denne konto' };
+  if (!email) return c.json(generic, 400);
+
+  const user = await c.env.DB.prepare(
+    'SELECT id FROM users WHERE email = ?'
+  ).bind(email.toLowerCase().trim()).first<{ id: string }>();
+  if (!user) return c.json(generic, 404);
+
+  const creds = await c.env.DB.prepare(
+    'SELECT id, transports FROM webauthn_credentials WHERE user_id = ?'
+  ).bind(user.id).all<{ id: string; transports: string | null }>();
+  if (creds.results.length === 0) return c.json(generic, 404);
+
+  const { rpID } = rpConfig(c.env);
+  const options = await generateAuthenticationOptions({
+    rpID,
+    userVerification: 'required',
+    allowCredentials: creds.results.map(r => ({
+      id: r.id,
+      transports: r.transports ? (JSON.parse(r.transports) as AuthenticatorTransportFuture[]) : undefined,
+    })),
+  });
+
+  await saveChallenge(c.env, user.id, options.challenge, 'authenticate');
+  return c.json(options);
+});
+
+// ── POST /auth/webauthn/login-verify  (public — finish Face ID/Touch ID login) ─
+authRoutes.post('/webauthn/login-verify', async (c) => {
+  const { email, response } = await c.req.json<{ email: string; response: AuthenticationResponseJSON }>();
+  if (!email || !response) return c.json({ error: 'Ugyldig forespørgsel' }, 400);
+
+  const user = await c.env.DB.prepare(
+    'SELECT id, org_id, email, name, role FROM users WHERE email = ?'
+  ).bind(email.toLowerCase().trim()).first<UserAuthRow>();
+  if (!user) return c.json({ error: 'Ugyldigt forsøg' }, 400);
+
+  const expectedChallenge = await consumeChallenge(c.env, user.id, 'authenticate');
+  if (!expectedChallenge) return c.json({ error: 'Udløbet forespørgsel — prøv igen' }, 400);
+
+  const credRow = await c.env.DB.prepare(
+    'SELECT id, public_key, counter, transports FROM webauthn_credentials WHERE id = ? AND user_id = ?'
+  ).bind(response.id, user.id).first<CredentialRow>();
+  if (!credRow) return c.json({ error: 'Ukendt enhed' }, 400);
+
+  const { origin, rpID } = rpConfig(c.env);
+
+  let verification;
+  try {
+    verification = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      credential: {
+        id: credRow.id,
+        publicKey: isoBase64URL.toBuffer(credRow.public_key),
+        counter: credRow.counter,
+        transports: credRow.transports ? (JSON.parse(credRow.transports) as AuthenticatorTransportFuture[]) : undefined,
+      },
+    });
+  } catch {
+    return c.json({ error: 'Kunne ikke verificere' }, 400);
+  }
+
+  if (!verification.verified) return c.json({ error: 'Verifikation fejlede' }, 400);
+
+  await c.env.DB.prepare(
+    'UPDATE webauthn_credentials SET counter = ?, last_used_at = ? WHERE id = ?'
+  ).bind(verification.authenticationInfo.newCounter, now(), credRow.id).run();
 
   const token = await signJWT(
     { sub: user.id, org: user.org_id, role: user.role as 'admin' | 'coach' },

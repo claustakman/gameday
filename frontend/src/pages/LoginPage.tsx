@@ -1,6 +1,7 @@
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
+import { isBiometricLoginAvailable, loginWithBiometrics } from '../lib/webauthn';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -8,6 +9,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
+  const [bioAvailable, setBioAvailable] = useState(false);
+  const [bioLoading, setBioLoading]     = useState(false);
+
+  useEffect(() => {
+    isBiometricLoginAvailable().then(setBioAvailable).catch(() => setBioAvailable(false));
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -22,6 +29,20 @@ export default function LoginPage() {
       setError(err instanceof Error ? err.message : 'Fejl ved login');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleBiometricLogin() {
+    if (!email) { setError('Indtast din email for at logge ind med Face ID/Touch ID'); return; }
+    setError('');
+    setBioLoading(true);
+    try {
+      const res = await loginWithBiometrics(email);
+      login(res.token, res.user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kunne ikke logge ind med Face ID/Touch ID');
+    } finally {
+      setBioLoading(false);
     }
   }
 
@@ -62,6 +83,17 @@ export default function LoginPage() {
           >
             {loading ? 'Logger ind…' : 'Log ind'}
           </button>
+
+          {bioAvailable && (
+            <button
+              type="button"
+              onClick={handleBiometricLogin}
+              disabled={bioLoading}
+              className="border border-border text-text1 rounded-lg py-3 font-semibold disabled:opacity-50"
+            >
+              {bioLoading ? 'Logger ind…' : '🔐 Log ind med Face ID / Touch ID'}
+            </button>
+          )}
         </form>
       </div>
     </div>

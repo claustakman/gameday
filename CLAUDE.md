@@ -52,12 +52,25 @@ Felter: `id`, `org_id`, `name`, `hs_user_id`.
 Felter: `id`, `org_id`, `email`, `name`, `password_hash`, `role` ('admin'|'coach').
 - `invite_tokens`: single-use, 7 dages udløb, oprettes af admin
 
+### webauthn_credentials / webauthn_challenges
+Face ID / Touch ID-login (WebAuthn/passkeys). Migration: `0011_webauthn.sql`.
+- `webauthn_credentials`: `id` (base64url credential ID, PK), `user_id`, `public_key` (base64url COSE-nøgle), `counter`, `transports` (JSON), `device_name`, `last_used_at`
+- `webauthn_challenges`: `user_id` (PK — kun én igangværende ceremoni ad gangen), `challenge`, `type` ('register'|'authenticate'), 5 min udløb
+- Bibliotek: `@simplewebauthn/server` (worker) + `@simplewebauthn/browser` (frontend) — begge WebCrypto-baserede, fungerer i Cloudflare Workers uden ekstra polyfills
+- RP ID/origin udledes af `CORS_ORIGIN` (`worker/src/lib/webauthn.ts` → `rpConfig()`)
+- Kun platform-authenticators tillades (`authenticatorAttachment: 'platform'`, `userVerification: 'required'`) — dvs. Face ID/Touch ID/Windows Hello, ikke USB-nøgler
+- Login-flow kræver stadig email (ingen discoverable/usernameless login) — matcher eksisterende login-UX
+- Enrollment sker fra ProfilePage mens man er logget ind (kan ikke bruges til at nulstille kodeord — password er stadig eneste recovery-vej)
+
 ## API
 Alle ruter kræver `Authorization: Bearer <JWT>` undtagen `/auth/*` og `/invite/:token`.
 JWT signeres med `JWT_SECRET` (Worker Secret), levetid 30 dage.
 CORS tillader kun `https://gameday-b2x.pages.dev`.
 
 ### Vigtige ruter
+- `POST /auth/webauthn/login-options`, `POST /auth/webauthn/login-verify` — public, Face ID/Touch ID-login (kræver `{ email }`)
+- `POST /webauthn/register-options`, `POST /webauthn/register-verify` — tilføj denne enhed som Face ID/Touch ID-login (authed)
+- `GET /webauthn/credentials`, `DELETE /webauthn/credentials/:id` — administrer egne enheder (authed)
 - `GET/POST /players` — hent/opret spillere (query: active, season, team_id). Returnerer active som integer (normaliseret fra D1)
 - `PATCH /players/:id` — opdater spiller (inkl. shirt_number, primary_team_id, active)
 - `DELETE /players/:id` — slet spiller (fjerner også game_roster + player_teams entries)
@@ -138,7 +151,7 @@ Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
 - `/stats`     → StatsPage — statistik pr. hold/sæson
 - `/standing`  → StandingPage — turneringsstilling hentet live fra DHF API. Hold-chip filter øverst. Ajax-hold markeres med farvet venstrekant + baggrund
 - `/squad`     → SquadPage — trupsstyring: liste, opret/rediger/slet, årgangfilter, sortering, inaktive-filter (chip skifter mellem aktive og inaktive)
-- `/profile`   → ProfilePage — rediger navn/kodeord, logout
+- `/profile`   → ProfilePage — rediger navn/kodeord, Face ID/Touch ID-enheder (tilføj/fjern), logout
 - `/settings`  → SettingsPage — hold (inkl. standing_url), webcal, trænere, Holdsport, brugere (admin)
 - `/invite/:token` → AcceptInvitePage — public, accepter invitation
 
