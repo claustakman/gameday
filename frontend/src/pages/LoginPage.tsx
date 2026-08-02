@@ -1,7 +1,7 @@
 import { useState, FormEvent, useEffect } from 'react';
 import { useAuth, getLastEmail } from '../lib/auth';
 import { api } from '../lib/api';
-import { isBiometricLoginAvailable, loginWithBiometrics } from '../lib/webauthn';
+import { isBiometricLoginAvailable, loginWithBiometrics, signalBiometricPromptCheck } from '../lib/webauthn';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -24,6 +24,7 @@ export default function LoginPage() {
       const res = await api.post<{ token: string; user: { id: string; email: string; name: string; role: 'admin' | 'coach' } }>(
         '/auth/login', { email, password }
       );
+      signalBiometricPromptCheck();
       login(res.token, res.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fejl ved login');

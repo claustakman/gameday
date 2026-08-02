@@ -61,6 +61,8 @@ Face ID / Touch ID-login (WebAuthn/passkeys). Migration: `0011_webauthn.sql`.
 - Kun platform-authenticators tillades (`authenticatorAttachment: 'platform'`, `userVerification: 'required'`) — dvs. Face ID/Touch ID/Windows Hello, ikke USB-nøgler
 - Login-flow kræver stadig email (ingen discoverable/usernameless login) — matcher eksisterende login-UX
 - Enrollment sker fra ProfilePage mens man er logget ind (kan ikke bruges til at nulstille kodeord — password er stadig eneste recovery-vej)
+- LoginPage prækryder email med sidst brugte email på enheden (`getLastEmail()` i `auth.tsx`, localStorage, overlever logout)
+- Efter password-login (ikke biometrisk) tilbyder `BiometricSetupPrompt` (bottom sheet, mountet i App.tsx) at aktivere Face ID/Touch ID hvis enheden understøtter det og ikke allerede er sat op/afvist — "Spørg ikke igen" gemmes i localStorage (`src/lib/webauthn.ts`)
 
 ## API
 Alle ruter kræver `Authorization: Bearer <JWT>` undtagen `/auth/*` og `/invite/:token`.

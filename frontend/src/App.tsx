@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import TabBar from './components/TabBar';
+import BiometricSetupPrompt from './components/BiometricSetupPrompt';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import GamesPage from './pages/GamesPage';
@@ -37,6 +38,7 @@ function AppShell() {
         </Routes>
       </main>
       <TabBar />
+      <BiometricSetupPrompt />
     </div>
   );
 }
