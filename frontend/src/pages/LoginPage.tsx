@@ -1,11 +1,11 @@
 import { useState, FormEvent, useEffect } from 'react';
-import { useAuth } from '../lib/auth';
+import { useAuth, getLastEmail } from '../lib/auth';
 import { api } from '../lib/api';
 import { isBiometricLoginAvailable, loginWithBiometrics } from '../lib/webauthn';
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const [email, setEmail]       = useState('');
+  const [email, setEmail]       = useState(getLastEmail);
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);

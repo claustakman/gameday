@@ -17,8 +17,14 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-const TOKEN_KEY = 'gd_token';
-const USER_KEY  = 'gd_user';
+const TOKEN_KEY      = 'gd_token';
+const USER_KEY       = 'gd_user';
+const LAST_EMAIL_KEY = 'gd_last_email';
+
+// Remembered across logout so the login screen can prefill it on this device
+export function getLastEmail(): string {
+  return localStorage.getItem(LAST_EMAIL_KEY) ?? '';
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
@@ -30,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function login(t: string, u: User) {
     localStorage.setItem(TOKEN_KEY, t);
     localStorage.setItem(USER_KEY, JSON.stringify(u));
+    localStorage.setItem(LAST_EMAIL_KEY, u.email);
     setToken(t);
     setUser(u);
   }
