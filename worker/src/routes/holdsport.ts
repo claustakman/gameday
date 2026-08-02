@@ -466,6 +466,8 @@ holdsportRoutes.post('/sync-players', async (c) => {
 
 interface HsActivityFull {
   id: number;
+  starttime?: string;
+  place?: string;
   activities_users?: HsActivityUser[];
   activities_coaches?: HsActivityUser[];
 }
