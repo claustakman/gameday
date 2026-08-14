@@ -13,9 +13,9 @@ export default function GamesPage() {
   const [showNew,    setShowNew]    = useState(false);
   const [showImport, setShowImport] = useState(false);
 
-  const [teamId,          setTeamId]          = useState('');
-  const [season,          setSeason]          = useState('');
-  const [status,          setStatus]          = useState('planned');
+  const [teamId,          setTeamId]          = useState(() => sessionStorage.getItem('gf_team')   ?? '');
+  const [season,          setSeason]          = useState(() => sessionStorage.getItem('gf_season') ?? '');
+  const [status,          setStatus]          = useState(() => sessionStorage.getItem('gf_status') ?? 'planned');
   const [search,          setSearch]          = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [updating,        setUpdating]        = useState(false);
@@ -30,6 +30,10 @@ export default function GamesPage() {
   const [selected,   setSelected]   = useState<Set<string>>(new Set());
   const [bulkWorking, setBulkWorking] = useState(false);
   const [bulkMsg,    setBulkMsg]    = useState('');
+
+  useEffect(() => { sessionStorage.setItem('gf_team',   teamId); }, [teamId]);
+  useEffect(() => { sessionStorage.setItem('gf_season', season); }, [season]);
+  useEffect(() => { sessionStorage.setItem('gf_status', status); }, [status]);
 
   useEffect(() => {
     api.get<Team[]>('/teams').then(setTeams).catch(() => {});
@@ -282,7 +286,7 @@ export default function GamesPage() {
           {/* FAB menu items */}
           {fabOpen && (
             <div className="fixed z-50 flex flex-col items-end gap-2"
-              style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom))', right: '1rem' }}>
+              style={{ bottom: 'calc(5rem + 3.5rem + 0.75rem + env(safe-area-inset-bottom))', right: '1rem' }}>
               <button
                 onClick={() => { setFabOpen(false); setShowImport(true); }}
                 disabled={importTeams.length === 0}

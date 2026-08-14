@@ -30,7 +30,11 @@ export default function HomePage() {
   // Seneste resultater (done), max 5
   const recent = games
     .filter(g => g.status === 'done')
-    .sort((a, b) => b.date.localeCompare(a.date))
+    .sort((a, b) => {
+      const da = a.date + (a.time ?? '99:99');
+      const db = b.date + (b.time ?? '99:99');
+      return db.localeCompare(da);
+    })
     .slice(0, 5);
 
   // Næste kamp per hold

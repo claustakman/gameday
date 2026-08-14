@@ -141,7 +141,7 @@ Kræver Worker Secrets: `HOLDSPORT_USER`, `HOLDSPORT_PASS` (Basic auth mod `http
 
 ### Sider og navigation
 Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
-- `/`          → HomePage — næste kamp pr. hold (m. tilmeldte + trænere), seneste resultater
+- `/`          → HomePage — næste kamp pr. hold (m. tilmeldte + trænere), seneste resultater sorteret faldende på dato+tid
 - `/games`     → GamesPage — liste med hold/status/sæson-filter + chip-sortering. Default: Planlagt. Kampe sorteres stigende efter dato+tid
   - FAB (+) nederst højre: åbner mini-menu med "Opret kamp" og "Importer fra Holdsport"
   - Header: sync-ikon (bulk-update fra Holdsport) + "Vælg"-chip
@@ -151,6 +151,9 @@ Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
   - Advarsler (ingen keeper, dobbeltbooking) vises som kollapsbar boks — default kollapset
   - Fidus-spiller markeres med 🧸 ved siden af K-knappen i Hold-sektionen
 - `/stats`     → StatsPage — statistik pr. hold/sæson
+  - Fokuspunkter aggregeres på tværs af kampe (samme label summeres)
+  - Fidus-kolonne viser antal som tal (grøn = flest), ikke bamse-ikon
+  - "Seneste kampe" sorteres faldende på dato+tid
 - `/standing`  → StandingPage — turneringsstilling hentet live fra DHF API. Hold-chip filter øverst. Ajax-hold markeres med farvet venstrekant + baggrund
 - `/squad`     → SquadPage — trupsstyring: liste, opret/rediger/slet, årgangfilter, sortering, inaktive-filter (chip skifter mellem aktive og inaktive)
 - `/profile`   → ProfilePage — rediger navn/kodeord, Face ID/Touch ID-enheder (tilføj/fjern), logout
@@ -173,7 +176,8 @@ Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
 - active-felt: D1 kan returnere integer eller boolean — brug altid `Number(p.active) === 1` i frontend og normaliser i worker
 - Fullscreen overlay: `fixed inset-0 z-[60] bg-bg flex flex-col` med header + scroll-div. Bruges af ResultSheet og AddToRosterSheet
 - Dobbeltbooking-advarsel: gult badge "Dobbelt" med tooltip på GameRow
-- Ingen-keeper-advarsel: orange badge "Ingen keeper" på GameRow + orange banner i GameDetailPage Hold-sektion
+- Ingen-keeper-advarsel: orange badge "Ingen keeper" på GameRow
+- Advarsler på GameDetailPage: samlet i kollapsbar gul boks (default kollapset)
 - Arkivering: PATCH /games/:id med `{ status: 'archived' }` — synlig med 'Arkiveret'-filter i GamesPage
 - Stilling: Ajax-hold markeres med `borderLeft: 4px solid color` + `backgroundColor: color+'12'`. Hold-match: `teamName.includes(ourName) || ourName.includes(teamName)` (case-insensitive)
 - FAB (floating action button): `fixed z-50 w-14 h-14 rounded-full bg-green`, placeret `bottom: calc(5rem + env(safe-area-inset-bottom)), right: 1rem`. Roterer til × når åben. Mini-menu springer op over FAB.
@@ -194,3 +198,5 @@ Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
 - Ingen lokal dev — alt testes via deploy til prod
 - TypeScript strict: ubrugte variabler (`TS6133`) bryder buildet — fjern dem altid
 - Frontend deployes lokalt med project-name `gameday` (ikke `gameday-b2x`)
+- `result_us` = ALTID vores score, `result_them` = ALTID modstanderens — uanset hjemme/ude. ResultSheet viser holdnavne (hjemmehold til venstre), og mapper input-felter korrekt baseret på `is_home`
+- GitHub Actions: Node.js 24 (opgraderet fra 20)

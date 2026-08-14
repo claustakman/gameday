@@ -50,13 +50,21 @@ export default function StatsPage() {
   const goalsAgainst = games.reduce((s, g) => s + (g.result_them ?? 0), 0);
   const winPct = played > 0 ? Math.round((wins / played) * 100) : 0;
 
-  const tally1 = games.reduce((s, g) => s + g.tally_1, 0);
-  const tally2 = games.reduce((s, g) => s + g.tally_2, 0);
-  const tally3 = games.reduce((s, g) => s + g.tally_3, 0);
-  const latestWithFocus = [...games].reverse().find(g => g.focus_1);
-  const focusLabel1 = latestWithFocus?.focus_1 ?? 'Fokus 1';
-  const focusLabel2 = latestWithFocus?.focus_2 ?? 'Fokus 2';
-  const focusLabel3 = latestWithFocus?.focus_3 ?? 'Fokus 3';
+  // Fokuspunkter per kamp — samlet som { label → totalTally }
+  const focusMap = new Map<string, number>();
+  for (const g of games) {
+    const fps = [
+      { focus: g.focus_1, tally: g.tally_1 },
+      { focus: g.focus_2, tally: g.tally_2 },
+      { focus: g.focus_3, tally: g.tally_3 },
+    ];
+    for (const { focus, tally } of fps) {
+      if (focus && tally > 0) {
+        focusMap.set(focus, (focusMap.get(focus) ?? 0) + tally);
+      }
+    }
+  }
+  const focusEntries = [...focusMap.entries()].sort((a, b) => b[1] - a[1]);
 
   const currentTeam = teams.find(t => t.id === teamId);
   const accentColor = currentTeam?.color ?? '#1D9E75';
@@ -182,11 +190,11 @@ export default function StatsPage() {
                         </div>
                       </div>
 
-                      {/* MOTM */}
+                      {/* Fidus */}
                       <div className="w-8 text-center">
                         {p.motm_count > 0 ? (
                           <span className={`text-xs font-bold ${isTopMOTM ? 'text-green' : 'text-text2'}`}>
-                            {p.motm_count > 1 ? `×${p.motm_count}` : '🧸'}
+                            {p.motm_count}
                           </span>
                         ) : (
                           <span className="text-text3 text-xs">—</span>
@@ -199,27 +207,25 @@ export default function StatsPage() {
             </div>
           )}
 
-          {/* Fokuspunkter — total */}
-          {(tally1 > 0 || tally2 > 0 || tally3 > 0) && (
+          {/* Fokuspunkter — aggregeret på tværs af kampe */}
+          {focusEntries.length > 0 && (
             <div className="bg-bg rounded-xl border border-border p-4 mb-4">
-              <p className="text-xs font-semibold text-text2 uppercase tracking-wide mb-3">Fokuspunkter — total</p>
+              <p className="text-xs font-semibold text-text2 uppercase tracking-wide mb-3">Fokuspunkter</p>
               <div className="flex flex-col gap-3">
-                {([[focusLabel1, tally1], [focusLabel2, tally2], [focusLabel3, tally3]] as [string, number][])
-                  .filter(([, count]) => count > 0)
-                  .map(([label, count], i) => {
-                    const max = Math.max(tally1, tally2, tally3, 1);
-                    return (
-                      <div key={i}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-text1 font-medium truncate pr-2">{label}</span>
-                          <span className="font-bold shrink-0" style={{ color: accentColor }}>{count}</span>
-                        </div>
-                        <div className="h-1.5 bg-bg2 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${(count / max) * 100}%`, backgroundColor: accentColor }} />
-                        </div>
+                {focusEntries.map(([label, count]) => {
+                  const max = focusEntries[0][1];
+                  return (
+                    <div key={label}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-text1 font-medium truncate pr-2">{label}</span>
+                        <span className="font-bold shrink-0" style={{ color: accentColor }}>{count}</span>
                       </div>
-                    );
-                  })}
+                      <div className="h-1.5 bg-bg2 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${(count / max) * 100}%`, backgroundColor: accentColor }} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -228,7 +234,11 @@ export default function StatsPage() {
           <div className="bg-bg rounded-xl border border-border p-4">
             <p className="text-xs font-semibold text-text2 uppercase tracking-wide mb-3">Seneste kampe</p>
             <div className="flex flex-col gap-2">
-              {games.slice(0, 8).map(g => {
+              {[...games].sort((a, b) => {
+                const da = a.date + (a.time ?? '99:99');
+                const db = b.date + (b.time ?? '99:99');
+                return db.localeCompare(da);
+              }).slice(0, 8).map(g => {
                 const won = g.result_us !== null && g.result_them !== null ? g.result_us > g.result_them! : null;
                 const d = new Date(g.date + 'T00:00:00');
                 const motmPlayer = g.motm_player_id

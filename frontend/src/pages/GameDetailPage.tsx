@@ -1031,15 +1031,15 @@ function AddToRosterSheet({ allPlayers, rosterPlayerIds, teams, fallbackColor, o
             {search ? 'Ingen spillere matcher søgningen' : 'Alle aktive spillere er allerede tilføjet'}
           </p>
         ) : (
-          <div className="flex flex-col gap-0.5">
-            {available.map(p => {
+          <div className="flex flex-col">
+            {available.map((p, i) => {
               const avatarColor = (p.primary_team_id && teamColorMap[p.primary_team_id]) ?? fallbackColor;
               return (
                 <button
                   key={p.id}
                   onClick={() => add(p.id)}
                   disabled={adding === p.id}
-                  className="flex items-center gap-3 w-full text-left px-2 py-2.5 rounded-xl active:bg-bg2 transition-colors disabled:opacity-50"
+                  className={`flex items-center gap-3 w-full text-left px-2 py-3 hover:bg-bg2 active:bg-bg2 transition-colors disabled:opacity-50 ${i < available.length - 1 ? 'border-b border-border' : ''}`}
                 >
                   <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: avatarColor, color: '#fff' }}>
                     <span className="text-xs font-bold">
