@@ -472,9 +472,8 @@ export default function GameDetailPage() {
           allCoaches={allCoaches}
           rosterCoachIds={roster.filter(r => r.coach_id).map(r => r.coach_id!)}
           onAdd={async (coachId) => {
-            await api.post(`/game_roster/${id}`, { coach_id: coachId });
-            const updated = await api.get<RosterEntry[]>(`/game_roster/${id}`);
-            setRoster(updated);
+            await api.post(`/games/${id}/roster`, { coach_id: coachId });
+            await fetchRoster();
           }}
           onClose={() => setShowCoachRoster(false)}
         />
