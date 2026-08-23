@@ -26,14 +26,7 @@ export default function StatsPage() {
     if (teamId) params.set('team_id', teamId);
     if (season) params.set('season', season);
     api.get<StatsResponse>(`/stats?${params}`)
-      .then(s => {
-        setStats(s);
-        // Default til nyeste sæson første gang
-        if (!season && s.games.length > 0) {
-          const seasons = [...new Set(s.games.map(g => g.season))].sort().reverse();
-          if (seasons[0]) setSeason(seasons[0]);
-        }
-      })
+      .then(s => { setStats(s); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [teamId, season]);
@@ -70,6 +63,7 @@ export default function StatsPage() {
 
   const currentTeam = teams.find(t => t.id === teamId);
   const accentColor = currentTeam?.color ?? '#1D9E75';
+  const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
 
   if (loading) {
     return (
@@ -275,6 +269,7 @@ export default function StatsPage() {
                 const motmPlayer = g.motm_player_id
                   ? playerStats.find(p => p.id === g.motm_player_id)
                   : null;
+                const gameTeam = teamMap[g.team_id];
                 return (
                   <div key={g.id} className="flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full shrink-0"
@@ -283,7 +278,15 @@ export default function StatsPage() {
                       {d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm text-text1 truncate block">{g.opponent}</span>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="text-sm text-text1 truncate">{g.opponent}</span>
+                        {!teamId && gameTeam && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                            style={{ backgroundColor: gameTeam.color + '22', color: gameTeam.color }}>
+                            {gameTeam.name}
+                          </span>
+                        )}
+                      </div>
                       {motmPlayer && (
                         <span className="text-[10px] text-text3">🧸 {motmPlayer.nickname ?? motmPlayer.full_name}</span>
                       )}
