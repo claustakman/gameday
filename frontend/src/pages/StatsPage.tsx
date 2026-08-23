@@ -264,7 +264,9 @@ export default function StatsPage() {
                 const db = b.date + (b.time ?? '99:99');
                 return db.localeCompare(da);
               }).slice(0, 8).map(g => {
-                const won = g.result_us !== null && g.result_them !== null ? g.result_us > g.result_them! : null;
+                const won = g.result_us !== null && g.result_them !== null
+                  ? g.result_us > g.result_them! ? true : g.result_us < g.result_them! ? false : null
+                  : null;
                 const d = new Date(g.date + 'T00:00:00');
                 const motmPlayer = g.motm_player_id
                   ? playerStats.find(p => p.id === g.motm_player_id)
