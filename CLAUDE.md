@@ -78,11 +78,14 @@ CORS tillader kun `https://gameday-b2x.pages.dev`.
 - `DELETE /players/:id` — slet spiller (fjerner også game_roster + player_teams entries)
 - `GET/POST /games` — hent/opret kampe (returnerer også `player_count`, `coach_names`, `tag`)
 - `GET /games/tags` — returnerer distinkte tags for org'en, merget med defaults ['turnering', 'træningskamp']
+- `GET /games/focuses` — returnerer distinkte fokuspunkter på tværs af focus_1/2/3 for org'en (til autocomplete)
 - `PATCH /games/:id` — rediger kamp inkl. team_id, tag, notes, status (inkl. 'archived')
 - `POST /games/:id/finish` — gem resultat + evaluering (went_well, went_bad, motm_player_id)
 - `POST /games/:id/focus` — gem fokuspunkter + tally
-- `GET/POST/DELETE /game_roster/:game_id` — fremmødeliste pr. kamp (spillere + trænere)
-- `GET/POST /coaches`, `PATCH/DELETE /coaches/:id` — trænerstyring
+- `POST /games/:id/roster` — tilføj spiller eller træner til kamp (`{ player_id }` eller `{ coach_id }`)
+- `DELETE /games/:id/roster/:roster_id`, `PATCH /games/:id/roster/:roster_id` — fjern/opdater roster-entry
+- `GET /game_roster/:game_id` — hent fremmødeliste pr. kamp
+- `GET/POST /coaches`, `PATCH/DELETE /coaches/:id` — trænerstyring (vedligeholdes i Indstillinger)
 - `GET /users`, `POST /users`, `DELETE /users/:id`, `POST /users/:id/invite` — brugeradmin (kun admin)
 - `GET /users/me`, `PATCH /users/me` — egen profil
 - `GET /standing/:poolId` — henter turneringsstilling fra DHF API (cms.dhf.dk). Returnerer `{ poolName, rows, lines }`
@@ -136,13 +139,14 @@ Kræver Worker Secrets: `HOLDSPORT_USER`, `HOLDSPORT_PASS` (Basic auth mod `http
 ## Frontend
 - `src/lib/api.ts` — fetch-wrapper, bruger `VITE_API_URL` env var i prod, 401 → clear localStorage + reload
 - `src/lib/auth.tsx` — AuthProvider + useAuth + updateUser, token i localStorage
-- `src/lib/types.ts` — delte TypeScript-typer: Team, Game, Player, Coach, RosterEntry, PlayerStat
+- `src/lib/types.ts` — delte TypeScript-typer: Team, Game, Player, Coach, RosterEntry, PlayerStat, CoachStat
 - `frontend/.env.production` — `VITE_API_URL=https://gameday-worker.claus-takman.workers.dev`
 
 ### Sider og navigation
 Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
 - `/`          → HomePage — næste kamp pr. hold (m. tilmeldte + trænere), seneste resultater sorteret faldende på dato+tid
 - `/games`     → GamesPage — liste med hold/status/sæson-filter + chip-sortering. Default: Planlagt. Kampe sorteres stigende efter dato+tid
+  - Filtre persisteres i `sessionStorage` (nøgler: `gf_team`, `gf_season`, `gf_status`) — huskes ved navigation frem/tilbage
   - FAB (+) nederst højre: åbner mini-menu med "Opret kamp" og "Importer fra Holdsport"
   - Header: sync-ikon (bulk-update fra Holdsport) + "Vælg"-chip
   - Multi-select: "Vælg" aktiverer select-tilstand → action-bar med Arkivér, Holdsport-sync, Slet
@@ -150,14 +154,18 @@ Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
 - `/games/:id` → GameDetailPage — detaljer, fokus+tally, noter, rediger (inkl. tag), resultat (fullscreen), arkivér, Holdsport-sync knap
   - Advarsler (ingen keeper, dobbeltbooking) vises som kollapsbar boks — default kollapset
   - Fidus-spiller markeres med 🧸 ved siden af K-knappen i Hold-sektionen
-- `/stats`     → StatsPage — statistik pr. hold/sæson
+  - Hold-sektion: "Tilføj træner"-knap + "Tilføj spiller"-knap. Begge åbner fullscreen picker
+  - Fokuspunkt-felt har autocomplete fra `/games/focuses` (samme mønster som tag-autocomplete)
+- `/stats`     → StatsPage — statistik pr. hold/sæson (ingen auto-select af sæson — viser alle som default)
   - Fokuspunkter aggregeres på tværs af kampe (samme label summeres)
   - Fidus-kolonne viser antal som tal (grøn = flest), ikke bamse-ikon
-  - "Seneste kampe" sorteres faldende på dato+tid
+  - Trænere-sektion: antal kampe pr. træner
+  - "Seneste kampe" sorteres faldende på dato+tid; viser holdnavn-chip ved "Alle hold"
+  - Uafgjort vises med mørkegrå (`text-text3`), ikke rød
 - `/standing`  → StandingPage — turneringsstilling hentet live fra DHF API. Hold-chip filter øverst. Ajax-hold markeres med farvet venstrekant + baggrund
-- `/squad`     → SquadPage — trupsstyring: liste, opret/rediger/slet, årgangfilter, sortering, inaktive-filter (chip skifter mellem aktive og inaktive)
+- `/squad`     → SquadPage — spillertrupsstyring: liste, opret/rediger/slet, årgangfilter, sortering, inaktive-filter
 - `/profile`   → ProfilePage — rediger navn/kodeord, Face ID/Touch ID-enheder (tilføj/fjern), logout
-- `/settings`  → SettingsPage — hold (inkl. standing_url), webcal, trænere, Holdsport, brugere (admin)
+- `/settings`  → SettingsPage — hold (inkl. standing_url), webcal, trænere (opret/rediger/slet inkl. hs_user_id), Holdsport, brugere (admin)
 - `/invite/:token` → AcceptInvitePage — public, accepter invitation
 
 ### Design-tokens (Tailwind)
@@ -180,7 +188,11 @@ Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
 - Advarsler på GameDetailPage: samlet i kollapsbar gul boks (default kollapset)
 - Arkivering: PATCH /games/:id med `{ status: 'archived' }` — synlig med 'Arkiveret'-filter i GamesPage
 - Stilling: Ajax-hold markeres med `borderLeft: 4px solid color` + `backgroundColor: color+'12'`. Hold-match: `teamName.includes(ourName) || ourName.includes(teamName)` (case-insensitive)
-- FAB (floating action button): `fixed z-50 w-14 h-14 rounded-full bg-green`, placeret `bottom: calc(5rem + env(safe-area-inset-bottom)), right: 1rem`. Roterer til × når åben. Mini-menu springer op over FAB.
+- FAB (floating action button): `fixed z-50 w-14 h-14 rounded-full bg-green`, placeret `bottom: calc(5rem + env(safe-area-inset-bottom)), right: 1rem`. Roterer til × når åben. Mini-menu placeres `bottom: calc(5rem + 3.5rem + 0.75rem + env(safe-area-inset-bottom))` (over FAB) for ikke at skjule sig bag knappen.
+- Filter-persistens (GamesPage): `sessionStorage` med nøgler `gf_team`, `gf_season`, `gf_status` — overlever navigation frem/tilbage, men nulstilles ved nyt faneblad
+- Fokuspunkt-autocomplete: `FocusInput`-komponent i GameDetailPage — henter `/games/focuses` ved fokus (én gang, cached), filtrerer on-type, `onMouseDown` for valg (undgår blur-race). UNION-query på focus_1/2/3 i worker.
+- Tre-vejs resultat: brug altid `won = result_us > result_them ? true : result_us < result_them ? false : null` — aldrig `g.result_us > g.result_them` alene (giver `false` ved uafgjort, ikke `null`)
+- Uafgjort farves `text-text3` (mørkegrå), ikke `text-red`
 
 ### Holdsport i UI
 - SettingsPage: `hsTeamId`-felt (default "625040") med "(slå op)"-knap der lister Holdsport-hold
