@@ -1,32 +1,26 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import type { Player, Team, Coach } from '../lib/types';
+import type { Player, Team } from '../lib/types';
 
 type SortKey = 'number' | 'name' | 'birth_year';
-type Tab = 'players' | 'coaches';
 
 export default function SquadPage() {
   const [players,  setPlayers]  = useState<Player[]>([]);
   const [teams,    setTeams]    = useState<Team[]>([]);
-  const [coaches,  setCoaches]  = useState<Coach[]>([]);
   const [loading,  setLoading]  = useState(true);
-  const [tab,      setTab]      = useState<Tab>('players');
 
   const [showInactive, setShowInactive] = useState(false);
   const [yearFilter,   setYearFilter]   = useState('');
   const [sortKey,      setSortKey]      = useState<SortKey>('number');
   const [showAdd,      setShowAdd]      = useState(false);
-  const [showAddCoach, setShowAddCoach] = useState(false);
 
   useEffect(() => {
     Promise.all([
       api.get<Player[]>('/players').catch(() => [] as Player[]),
       api.get<Team[]>('/teams').catch(() => [] as Team[]),
-      api.get<Coach[]>('/coaches').catch(() => [] as Coach[]),
-    ]).then(([p, t, c]) => {
+    ]).then(([p, t]) => {
       setPlayers(p);
       setTeams(t);
-      setCoaches(c);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -109,129 +103,74 @@ export default function SquadPage() {
       <div className="bg-bg px-4 pt-6 pb-3 border-b border-border">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-text1">Trup</h2>
-          {tab === 'players' ? (
-            <button
-              onClick={() => setShowAdd(true)}
-              className="flex items-center gap-1 bg-green text-white text-sm font-semibold px-3 py-1.5 rounded-lg"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              Ny spiller
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowAddCoach(true)}
-              className="flex items-center gap-1 bg-green text-white text-sm font-semibold px-3 py-1.5 rounded-lg"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              Ny træner
-            </button>
-          )}
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 mb-3 bg-bg2 rounded-lg p-1">
           <button
-            onClick={() => setTab('players')}
-            className={`flex-1 py-1.5 text-sm font-semibold rounded-md transition-colors ${tab === 'players' ? 'bg-bg text-text1 shadow-sm' : 'text-text3'}`}
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-1 bg-green text-white text-sm font-semibold px-3 py-1.5 rounded-lg"
           >
-            Spillere
-          </button>
-          <button
-            onClick={() => setTab('coaches')}
-            className={`flex-1 py-1.5 text-sm font-semibold rounded-md transition-colors ${tab === 'coaches' ? 'bg-bg text-text1 shadow-sm' : 'text-text3'}`}
-          >
-            Trænere
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Ny spiller
           </button>
         </div>
 
-        {tab === 'players' && (
-          <>
-            {/* Filtre: årgang + inaktive */}
-            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-              <ChipButton active={yearFilter === ''} onClick={() => setYearFilter('')}>Alle</ChipButton>
-              {years.map(y => (
-                <ChipButton
-                  key={y}
-                  active={yearFilter === String(y)}
-                  onClick={() => setYearFilter(yearFilter === String(y) ? '' : String(y))}
-                >
-                  {y}
-                </ChipButton>
-              ))}
-              {years.length > 0 && <span className="w-px bg-border shrink-0 mx-1" />}
-              <ChipButton active={showInactive} onClick={() => setShowInactive(s => !s)}>
-                Inaktive{showInactive && players.filter(p => Number(p.active) !== 1).length > 0 ? ` (${players.filter(p => Number(p.active) !== 1).length})` : ''}
-              </ChipButton>
-            </div>
+        {/* Filtre: årgang + inaktive */}
+        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+          <ChipButton active={yearFilter === ''} onClick={() => setYearFilter('')}>Alle</ChipButton>
+          {years.map(y => (
+            <ChipButton
+              key={y}
+              active={yearFilter === String(y)}
+              onClick={() => setYearFilter(yearFilter === String(y) ? '' : String(y))}
+            >
+              {y}
+            </ChipButton>
+          ))}
+          {years.length > 0 && <span className="w-px bg-border shrink-0 mx-1" />}
+          <ChipButton active={showInactive} onClick={() => setShowInactive(s => !s)}>
+            Inaktive{showInactive && players.filter(p => Number(p.active) !== 1).length > 0 ? ` (${players.filter(p => Number(p.active) !== 1).length})` : ''}
+          </ChipButton>
+        </div>
 
-            {/* Sortering */}
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
-              {sortOptions.map(opt => (
-                <SortChip
-                  key={opt.key}
-                  active={sortKey === opt.key}
-                  onClick={() => setSortKey(opt.key)}
-                >
-                  {opt.label}
-                </SortChip>
-              ))}
-            </div>
-          </>
-        )}
+        {/* Sortering */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+          {sortOptions.map(opt => (
+            <SortChip
+              key={opt.key}
+              active={sortKey === opt.key}
+              onClick={() => setSortKey(opt.key)}
+            >
+              {opt.label}
+            </SortChip>
+          ))}
+        </div>
       </div>
 
-      {tab === 'players' ? (
-        /* Spillerliste */
-        <div className="flex-1 px-4 py-3 flex flex-col gap-1">
-          {showInactive && inactive.length === 0 && (
-            <p className="text-center text-text3 text-sm pt-12">Ingen inaktive spillere</p>
-          )}
-          {!showInactive && active.length === 0 && inactive.length > 0 && (
-            <p className="text-center text-text3 text-sm pt-12">
-              Ingen aktive spillere{yearFilter ? ` fra ${yearFilter}` : ''} — tryk <span className="font-semibold">Inaktive</span> for at se dem
-            </p>
-          )}
-          {!showInactive && active.length === 0 && inactive.length === 0 && (
-            <p className="text-center text-text3 text-sm pt-12">
-              {yearFilter ? `Ingen spillere fra ${yearFilter}` : 'Ingen spillere endnu — tilføj den første'}
-            </p>
-          )}
-          {(showInactive ? inactive : active).map(p => (
-            <PlayerRow key={p.id} player={p} teamMap={teamMap} teams={teams} onUpdated={onUpdated} onDeleted={onDeleted} />
-          ))}
-        </div>
-      ) : (
-        /* Trænerliste */
-        <div className="flex-1 px-4 py-3 flex flex-col gap-1">
-          {coaches.length === 0 && (
-            <p className="text-center text-text3 text-sm pt-12">Ingen trænere endnu — tilføj den første</p>
-          )}
-          {coaches.map(c => (
-            <CoachRow
-              key={c.id}
-              coach={c}
-              onUpdated={updated => setCoaches(cs => cs.map(x => x.id === updated.id ? updated : x))}
-              onDeleted={id => setCoaches(cs => cs.filter(x => x.id !== id))}
-            />
-          ))}
-        </div>
-      )}
+      {/* Spillerliste */}
+      <div className="flex-1 px-4 py-3 flex flex-col gap-1">
+        {showInactive && inactive.length === 0 && (
+          <p className="text-center text-text3 text-sm pt-12">Ingen inaktive spillere</p>
+        )}
+        {!showInactive && active.length === 0 && inactive.length > 0 && (
+          <p className="text-center text-text3 text-sm pt-12">
+            Ingen aktive spillere{yearFilter ? ` fra ${yearFilter}` : ''} — tryk <span className="font-semibold">Inaktive</span> for at se dem
+          </p>
+        )}
+        {!showInactive && active.length === 0 && inactive.length === 0 && (
+          <p className="text-center text-text3 text-sm pt-12">
+            {yearFilter ? `Ingen spillere fra ${yearFilter}` : 'Ingen spillere endnu — tilføj den første'}
+          </p>
+        )}
+        {(showInactive ? inactive : active).map(p => (
+          <PlayerRow key={p.id} player={p} teamMap={teamMap} teams={teams} onUpdated={onUpdated} onDeleted={onDeleted} />
+        ))}
+      </div>
 
       {showAdd && (
         <AddPlayerSheet
           teams={teams}
           onClose={() => setShowAdd(false)}
           onAdded={onAdded}
-        />
-      )}
-      {showAddCoach && (
-        <AddCoachSheet
-          onClose={() => setShowAddCoach(false)}
-          onAdded={c => { setCoaches(cs => [...cs, c]); setShowAddCoach(false); }}
         />
       )}
     </div>
@@ -627,137 +566,6 @@ function PlayerForm({
 
       {error && <p className="text-red text-sm">{error}</p>}
     </div>
-  );
-}
-
-/* ─── CoachRow ───────────────────────────────────────────────────── */
-function CoachRow({ coach, onUpdated, onDeleted }: {
-  coach: Coach;
-  onUpdated: (c: Coach) => void;
-  onDeleted: (id: string) => void;
-}) {
-  const [showEdit, setShowEdit] = useState(false);
-  const [name,     setName]     = useState(coach.name);
-  const [hsId,     setHsId]     = useState(coach.hs_user_id ?? '');
-  const [saving,   setSaving]   = useState(false);
-  const [confirm,  setConfirm]  = useState(false);
-
-  async function save() {
-    if (!name.trim()) return;
-    setSaving(true);
-    try {
-      await api.patch(`/coaches/${coach.id}`, { name: name.trim(), hs_user_id: hsId.trim() || null });
-      onUpdated({ ...coach, name: name.trim(), hs_user_id: hsId.trim() || null });
-      setShowEdit(false);
-    } finally { setSaving(false); }
-  }
-
-  async function del() {
-    await api.delete(`/coaches/${coach.id}`);
-    onDeleted(coach.id);
-  }
-
-  const inputCls = 'w-full border border-border rounded-lg px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg';
-
-  return (
-    <>
-      <button
-        onClick={() => setShowEdit(true)}
-        className="w-full text-left bg-bg rounded-xl border border-border px-4 py-3 flex items-center gap-3 active:bg-bg2 transition-colors"
-      >
-        <div className="w-9 h-9 rounded-full bg-bg2 flex items-center justify-center shrink-0">
-          <span className="text-sm font-bold text-text2">
-            {coach.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
-          </span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-text1 text-sm truncate">{coach.name}</p>
-          {coach.hs_user_id && <p className="text-xs text-text3">HS: {coach.hs_user_id}</p>}
-        </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text3 shrink-0">
-          <path d="M9 18l6-6-6-6"/>
-        </svg>
-      </button>
-
-      {showEdit && (
-        <BottomSheet title="Rediger træner" onClose={() => setShowEdit(false)}>
-          <div className="flex flex-col gap-3 pb-4">
-            <div>
-              <label className="block text-xs font-medium text-text2 mb-1.5">Navn</label>
-              <input value={name} onChange={e => setName(e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-text2 mb-1.5">
-                Holdsport bruger-ID <span className="font-normal text-text3">(til integration)</span>
-              </label>
-              <input value={hsId} onChange={e => setHsId(e.target.value)} placeholder="fx 123456" className={inputCls} />
-            </div>
-            <div className="pt-2 border-t border-border flex flex-col gap-2">
-              <button onClick={save} disabled={saving || !name.trim()}
-                className="w-full bg-green text-white rounded-xl py-3.5 font-semibold text-sm disabled:opacity-50">
-                {saving ? 'Gemmer…' : 'Gem ændringer'}
-              </button>
-              {!confirm ? (
-                <button onClick={() => setConfirm(true)}
-                  className="w-full rounded-xl py-3 font-semibold text-sm text-red bg-bg2">
-                  Slet træner
-                </button>
-              ) : (
-                <div className="flex gap-2">
-                  <button onClick={() => setConfirm(false)} className="flex-1 border border-border rounded-lg py-2 text-sm text-text2">Annuller</button>
-                  <button onClick={del} className="flex-1 bg-red text-white rounded-lg py-2 text-sm font-semibold">Slet</button>
-                </div>
-              )}
-            </div>
-          </div>
-        </BottomSheet>
-      )}
-    </>
-  );
-}
-
-/* ─── AddCoachSheet ──────────────────────────────────────────────── */
-function AddCoachSheet({ onClose, onAdded }: {
-  onClose: () => void;
-  onAdded: (c: Coach) => void;
-}) {
-  const [name,   setName]   = useState('');
-  const [hsId,   setHsId]   = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const inputCls = 'w-full border border-border rounded-lg px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg';
-
-  async function save() {
-    if (!name.trim()) return;
-    setSaving(true);
-    try {
-      const { id } = await api.post<{ id: string }>('/coaches', { name: name.trim() });
-      if (hsId.trim()) await api.patch(`/coaches/${id}`, { hs_user_id: hsId.trim() }).catch(() => {});
-      onAdded({ id, org_id: '', name: name.trim(), hs_user_id: hsId.trim() || null });
-    } finally { setSaving(false); }
-  }
-
-  return (
-    <BottomSheet title="Ny træner" onClose={onClose}>
-      <div className="flex flex-col gap-3 pb-4">
-        <div>
-          <label className="block text-xs font-medium text-text2 mb-1.5">Navn</label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="For- og efternavn" className={inputCls} />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-text2 mb-1.5">
-            Holdsport bruger-ID <span className="font-normal text-text3">(valgfri)</span>
-          </label>
-          <input value={hsId} onChange={e => setHsId(e.target.value)} placeholder="fx 123456" className={inputCls} />
-        </div>
-        <div className="pt-2 border-t border-border">
-          <button onClick={save} disabled={saving || !name.trim()}
-            className="w-full bg-green text-white rounded-xl py-3.5 font-semibold text-sm disabled:opacity-50">
-            {saving ? 'Gemmer…' : 'Opret træner'}
-          </button>
-        </div>
-      </div>
-    </BottomSheet>
   );
 }
 
