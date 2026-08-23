@@ -83,6 +83,21 @@ gameRoutes.get('/tags', async (c) => {
   return c.json(merged);
 });
 
+// ── GET /games/focuses — distinct focus points used in this org ────────────
+gameRoutes.get('/focuses', async (c) => {
+  const user = c.get('user');
+  const res = await c.env.DB.prepare(`
+    SELECT DISTINCT val FROM (
+      SELECT focus_1 AS val FROM games g JOIN teams t ON t.id = g.team_id WHERE t.org_id = ? AND focus_1 IS NOT NULL AND focus_1 != ''
+      UNION
+      SELECT focus_2 FROM games g JOIN teams t ON t.id = g.team_id WHERE t.org_id = ? AND focus_2 IS NOT NULL AND focus_2 != ''
+      UNION
+      SELECT focus_3 FROM games g JOIN teams t ON t.id = g.team_id WHERE t.org_id = ? AND focus_3 IS NOT NULL AND focus_3 != ''
+    ) ORDER BY val ASC
+  `).bind(user.org, user.org, user.org).all<{ val: string }>();
+  return c.json(res.results.map(r => r.val));
+});
+
 gameRoutes.get('/:id', async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');

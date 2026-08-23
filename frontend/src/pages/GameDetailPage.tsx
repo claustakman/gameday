@@ -655,6 +655,51 @@ function ResultSheet({ game, color, teamName, roster, onClose, onSaved }: {
   );
 }
 
+/* ─── FocusInput ──────────────────────────────────────────────────── */
+function FocusInput({ value, onChange, inputCls }: { value: string; onChange: (v: string) => void; inputCls: string }) {
+  const [options,  setOptions]  = useState<string[]>([]);
+  const [open,     setOpen]     = useState(false);
+  const [fetched,  setFetched]  = useState(false);
+
+  async function ensureOptions() {
+    if (fetched) return;
+    try { setOptions(await api.get<string[]>('/games/focuses')); } catch { /* silent */ }
+    setFetched(true);
+  }
+
+  const filtered = options.filter(o => o.toLowerCase().includes(value.toLowerCase()) && o !== value);
+  const showList = open && (filtered.length > 0 || (options.length > 0 && !value));
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        placeholder="Fokuspunkt"
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => { ensureOptions(); setOpen(true); }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className={inputCls}
+      />
+      {showList && (
+        <ul className="absolute left-0 right-0 top-full mt-1 z-10 bg-bg border border-border rounded-lg shadow-lg overflow-hidden">
+          {(value ? filtered : options).map(o => (
+            <li key={o}>
+              <button
+                type="button"
+                onMouseDown={() => { onChange(o); setOpen(false); }}
+                className="w-full text-left px-3 py-2 text-sm text-text1 hover:bg-bg2"
+              >
+                {o}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /* ─── TagInput ────────────────────────────────────────────────────── */
 function TagInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [tags,     setTags]     = useState<string[]>([]);
@@ -866,7 +911,7 @@ function EditSheet({ game, teams, color, onClose, onSaved, onDeleted }: {
                     </button>
                   )}
                 </div>
-                <input type="text" placeholder="Fokuspunkt" value={f.focus} onChange={e => setFocusField(i, 'focus', e.target.value)} className={inputCls} />
+                <FocusInput value={f.focus} onChange={v => setFocusField(i, 'focus', v)} inputCls={inputCls} />
                 <input type="text" placeholder="Mål (valgfri)" value={f.goal}  onChange={e => setFocusField(i, 'goal',  e.target.value)} className={inputCls} />
               </div>
             ))}
