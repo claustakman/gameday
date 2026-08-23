@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
-import type { Game, Team, Player, RosterEntry } from '../lib/types';
+import type { Game, Team, Player, RosterEntry, Coach } from '../lib/types';
 
 export default function GameDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -11,12 +11,14 @@ export default function GameDetailPage() {
   const [roster,       setRoster]       = useState<RosterEntry[]>([]);
   const [doubleBooked, setDoubleBooked] = useState<{ player_id: string; name: string; other_team_name: string }[]>([]);
   const [allPlayers,   setAllPlayers]   = useState<Player[]>([]);
+  const [allCoaches,   setAllCoaches]   = useState<Coach[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState('');
 
-  const [showResult,  setShowResult]  = useState(false);
-  const [showEdit,    setShowEdit]    = useState(false);
-  const [showRoster,  setShowRoster]  = useState(false);
+  const [showResult,      setShowResult]      = useState(false);
+  const [showEdit,        setShowEdit]        = useState(false);
+  const [showRoster,      setShowRoster]      = useState(false);
+  const [showCoachRoster, setShowCoachRoster] = useState(false);
   const [hsSyncing,   setHsSyncing]   = useState(false);
   const [hsSyncMsg,   setHsSyncMsg]   = useState('');
 
@@ -26,8 +28,9 @@ export default function GameDetailPage() {
       api.get<Game>(`/games/${id}`),
       api.get<Team[]>('/teams'),
       api.get<Player[]>('/players?active=1'),
+      api.get<Coach[]>('/coaches'),
     ])
-      .then(([g, ts, ps]) => { setGame(g); setTeams(ts); setAllPlayers(ps); })
+      .then(([g, ts, ps, cs]) => { setGame(g); setTeams(ts); setAllPlayers(ps); setAllCoaches(cs); })
       .catch(() => setError('Kunne ikke hente kamp'))
       .finally(() => setLoading(false));
   }, [id]);
@@ -284,6 +287,13 @@ export default function GameDetailPage() {
                 </button>
               )}
               <button
+                onClick={() => setShowCoachRoster(true)}
+                className="flex items-center gap-1 text-xs font-semibold text-text2"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Tilføj træner
+              </button>
+              <button
                 onClick={() => setShowRoster(true)}
                 className="flex items-center gap-1 text-xs font-semibold text-green"
               >
@@ -455,6 +465,18 @@ export default function GameDetailPage() {
           fallbackColor={color}
           onAdd={async (pid) => { await addToRoster(pid); }}
           onClose={() => setShowRoster(false)}
+        />
+      )}
+      {showCoachRoster && (
+        <AddCoachToRosterSheet
+          allCoaches={allCoaches}
+          rosterCoachIds={roster.filter(r => r.coach_id).map(r => r.coach_id!)}
+          onAdd={async (coachId) => {
+            await api.post(`/game_roster/${id}`, { coach_id: coachId });
+            const updated = await api.get<RosterEntry[]>(`/game_roster/${id}`);
+            setRoster(updated);
+          }}
+          onClose={() => setShowCoachRoster(false)}
         />
       )}
     </div>
@@ -1058,6 +1080,66 @@ function AddToRosterSheet({ allPlayers, rosterPlayerIds, teams, fallbackColor, o
                 </button>
               );
             })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── AddCoachToRosterSheet ──────────────────────────────────────── */
+function AddCoachToRosterSheet({ allCoaches, rosterCoachIds, onAdd, onClose }: {
+  allCoaches: Coach[];
+  rosterCoachIds: string[];
+  onAdd: (coachId: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [adding, setAdding] = useState<string | null>(null);
+  const available = allCoaches.filter(c => !rosterCoachIds.includes(c.id));
+
+  async function add(coachId: string) {
+    setAdding(coachId);
+    try { await onAdd(coachId); } finally { setAdding(null); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-bg flex flex-col">
+      <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border shrink-0">
+        <h3 className="text-lg font-bold text-text1">Tilføj træner</h3>
+        <button onClick={onClose} className="text-text3 p-1">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-2" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        {available.length === 0 ? (
+          <p className="text-center text-text3 text-sm py-10">
+            Alle trænere er allerede tilføjet
+          </p>
+        ) : (
+          <div className="flex flex-col">
+            {available.map((c, i) => (
+              <button
+                key={c.id}
+                onClick={() => add(c.id)}
+                disabled={adding === c.id}
+                className={`flex items-center gap-3 w-full text-left px-2 py-3 hover:bg-bg2 active:bg-bg2 transition-colors disabled:opacity-50 ${i < available.length - 1 ? 'border-b border-border' : ''}`}
+              >
+                <div className="w-9 h-9 rounded-full bg-bg2 flex items-center justify-center shrink-0">
+                  <span className="text-xs font-bold text-text2">
+                    {c.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-text1 truncate">{c.name}</p>
+                </div>
+                {adding === c.id
+                  ? <div className="w-5 h-5 border-2 border-green border-t-transparent rounded-full animate-spin shrink-0" />
+                  : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-green shrink-0"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                }
+              </button>
+            ))}
           </div>
         )}
       </div>

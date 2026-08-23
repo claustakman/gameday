@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import type { Game, Team, PlayerStat } from '../lib/types';
+import type { Game, Team, PlayerStat, CoachStat } from '../lib/types';
 
 interface StatsResponse {
   games: Game[];
   player_stats: PlayerStat[];
+  coach_stats: CoachStat[];
 }
 
 export default function StatsPage() {
@@ -39,6 +40,7 @@ export default function StatsPage() {
 
   const games = stats?.games ?? [];
   const playerStats = stats?.player_stats ?? [];
+  const coachStats  = stats?.coach_stats  ?? [];
 
   const allSeasons = [...new Set(games.map(g => g.season))].sort().reverse();
 
@@ -203,6 +205,35 @@ export default function StatsPage() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Trænere */}
+          {coachStats.length > 0 && (
+            <div className="bg-bg rounded-xl border border-border p-4 mb-4">
+              <p className="text-xs font-semibold text-text2 uppercase tracking-wide mb-3">Trænere</p>
+              <div className="flex flex-col gap-0">
+                <div className="flex items-center gap-2 px-1 pb-2 border-b border-border">
+                  <div className="flex-1 min-w-0" />
+                  <span className="text-[10px] font-semibold text-text3 w-10 text-center">Kampe</span>
+                </div>
+                {coachStats.map((c, i) => (
+                  <div
+                    key={c.id}
+                    className={`flex items-center gap-2 py-2.5 px-1 ${i < coachStats.length - 1 ? 'border-b border-border' : ''}`}
+                  >
+                    <div
+                      className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold bg-bg2 text-text2"
+                    >
+                      {c.name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-text1 truncate">{c.name}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-text1 w-10 text-center">{c.appearances}</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}

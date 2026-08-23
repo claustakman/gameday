@@ -96,6 +96,12 @@ export interface PlayerStat {
   motm_count: number;
 }
 
+export interface CoachStat {
+  id: string;
+  name: string;
+  appearances: number;
+}
+
 export interface WebauthnCredential {
   id: string;
   device_name: string | null;
