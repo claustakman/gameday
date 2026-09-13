@@ -18,13 +18,14 @@ React + Vite (frontend), Cloudflare Workers + D1 (backend), TypeScript overalt.
 ## Database
 D1 SQLite, database-navn: `gameday-db`, ID: `8f36b1b1-3b21-47f5-aeb0-90033908bf51`.
 Migrations ligger i `worker/migrations/`. Navngivning: `000N_beskrivelse.sql`.
-OBS: `wrangler d1 migrations apply gameday-db --remote` fejler med auth 7403.
-Brug i stedet: `npx wrangler d1 execute gameday-db --remote --command="<SQL>"`
+OBS: `wrangler d1 migrations apply gameday-db --remote` fejler med auth 7403 (OAuth-token mangler D1-scope).
+Brug i stedet Cloudflare Dashboard → D1 → gameday-db → Console til direkte SQL.
+`npx wrangler d1 execute gameday-db --remote --command="<SQL>"` fejler også med 7403.
 Account ID: `7e32b34a4c1bfd168cd4132055b1505b`
 
 ## Datamodel — nøglepunkter
 - `organizations` → `teams` → `games` → `game_roster`
-- En sæson (fx "2025/26") har op til 3 hold
+- En sæson (fx "2026/27") har op til 3 hold. Sæson arves fra holdet ved kamp-oprettelse — aldrig beregnet fra kampens dato
 - Hold har: navn, beskrivelse, farve (hex), Holdsport ID, standing_url — konfigureres i Indstillinger
 - `season_config`: webcal-link per org+sæson (bruges til kalenderimport, ikke implementeret endnu)
 - Dobbeltbooking: spiller på roster for to kampe samme dato → returneres som `double_booked_players`
