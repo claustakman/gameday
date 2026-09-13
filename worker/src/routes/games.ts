@@ -56,7 +56,8 @@ gameRoutes.post('/', async (c) => {
   if (!team) return c.json({ error: 'Team not found' }, 404);
 
   const id = uuid();
-  const season = body.date.slice(0, 4);
+  const teamRow = await c.env.DB.prepare('SELECT season FROM teams WHERE id = ?').bind(body.team_id).first<{ season: string }>();
+  const season = teamRow?.season ?? body.date.slice(0, 4);
   await c.env.DB.prepare(`
     INSERT INTO games (id, team_id, season, date, time, meetup_time, opponent, location, is_home, tag, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
