@@ -146,7 +146,7 @@ Kræver Worker Secrets: `HOLDSPORT_USER`, `HOLDSPORT_PASS` (Basic auth mod `http
 ### Sider og navigation
 Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
 - `/`          → HomePage — næste kamp pr. hold (m. tilmeldte + trænere), seneste resultater sorteret faldende på dato+tid
-- `/games`     → GamesPage — liste med hold/status-filter (intet sæson-filter — kun én sæson). Default: Planlagt. Sorteringsknap (Stigende/Faldende) efter dato+tid, default stigende — server returnerer stigende, faldende vendes client-side
+- `/games`     → GamesPage — liste med hold/status-filter (intet sæson-filter — kun én sæson). Default: Planlagt. Sorteringsknap (ikon med pil op/ned) efter dato+tid, default stigende — server returnerer stigende, faldende vendes client-side
   - Filtre + sortering persisteres i `sessionStorage` (nøgler: `gf_team`, `gf_status`, `gf_sort`) — huskes ved navigation frem/tilbage
   - FAB (+) nederst højre: åbner mini-menu med "Opret kamp" og "Importer fra Holdsport"
   - Header: sync-ikon (bulk-update fra Holdsport) + "Vælg"-chip

@@ -213,13 +213,15 @@ export default function GamesPage() {
               </ChipButton>
             ))}
             <span className="w-px bg-border shrink-0 mx-1" />
-            <button onClick={() => setSortDesc(d => !d)} title="Skift sortering på dato"
-              className="shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-bg2 text-text2 active:bg-border">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                style={{ transform: sortDesc ? 'rotate(180deg)' : undefined }}>
-                <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+            <button onClick={() => setSortDesc(d => !d)}
+              title={sortDesc ? 'Faldende dato — tryk for stigende' : 'Stigende dato — tryk for faldende'}
+              aria-label={sortDesc ? 'Sortering: faldende' : 'Sortering: stigende'}
+              className="shrink-0 flex items-center justify-center px-2.5 py-1 rounded-full bg-bg2 text-text2 active:bg-border">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                {sortDesc
+                  ? <><line x1="6" y1="4" x2="6" y2="20"/><polyline points="2 16 6 20 10 16"/><line x1="13" y1="6" x2="22" y2="6"/><line x1="13" y1="12" x2="19" y2="12"/><line x1="13" y1="18" x2="16" y2="18"/></>
+                  : <><line x1="6" y1="20" x2="6" y2="4"/><polyline points="2 8 6 4 10 8"/><line x1="13" y1="6" x2="16" y2="6"/><line x1="13" y1="12" x2="19" y2="12"/><line x1="13" y1="18" x2="22" y2="18"/></>}
               </svg>
-              {sortDesc ? 'Faldende' : 'Stigende'}
             </button>
           </div>
         </div>
