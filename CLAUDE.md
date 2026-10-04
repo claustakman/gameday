@@ -153,6 +153,7 @@ Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
   - Multi-select: "Vælg" aktiverer select-tilstand → action-bar med Arkivér, Holdsport-sync, Slet
   - Enkelt slet: × på hvert kort med inline bekræftelse
 - `/games/:id` → GameDetailPage — detaljer, fokus+tally, noter, rediger (inkl. tag), resultat (fullscreen), arkivér, Holdsport-sync knap
+  - Topbar: "‹ Kampe" til venstre, "Rediger"-chip til højre (åbner EditSheet). Ingen Rediger-knap i bunden — kun "Log resultat" + "Arkivér"
   - Advarsler (ingen keeper, dobbeltbooking) vises som kollapsbar boks — default kollapset
   - Fidus-spiller markeres med 🧸 ved siden af K-knappen i Hold-sektionen
   - Hold-sektion: "Tilføj træner"-knap + "Tilføj spiller"-knap. Begge åbner fullscreen picker
