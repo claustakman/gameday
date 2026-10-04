@@ -156,6 +156,8 @@ Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
   - Advarsler (ingen keeper, dobbeltbooking) vises som kollapsbar boks — default kollapset
   - Fidus-spiller markeres med 🧸 ved siden af K-knappen i Hold-sektionen
   - Hold-sektion: "Tilføj træner"-knap + "Tilføj spiller"-knap. Begge åbner fullscreen picker
+  - Hold-sektion kan kollapses (klik på "Hold (N)"). Valget huskes i `localStorage` (`gd_roster_collapsed`). Uden spillere er den altid åben
+  - Resultat (ResultSheet): fullscreen med "‹ Tilbage" øverst til venstre. Noter (went_well/went_bad) + Fidus autogemmes (debounce 1s) via `PATCH /games/:id` som kladde — status ændres ikke. "Gem resultat" (`POST /finish`) kræver stadig begge scores og sætter status='done'
   - Fokuspunkt-felt har autocomplete fra `/games/focuses` (samme mønster som tag-autocomplete)
 - `/stats`     → StatsPage — statistik pr. hold/sæson (ingen auto-select af sæson — viser alle som default)
   - Fokuspunkter aggregeres på tværs af kampe (samme label summeres)

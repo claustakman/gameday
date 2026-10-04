@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { Game, Team, Player, RosterEntry, Coach } from '../lib/types';
@@ -21,6 +21,15 @@ export default function GameDetailPage() {
   const [showCoachRoster, setShowCoachRoster] = useState(false);
   const [hsSyncing,   setHsSyncing]   = useState(false);
   const [hsSyncMsg,   setHsSyncMsg]   = useState('');
+  const [rosterCollapsedPref, setRosterCollapsedPref] = useState(() => localStorage.getItem('gd_roster_collapsed') === '1');
+
+  function toggleRosterCollapsed() {
+    setRosterCollapsedPref(prev => {
+      const next = !prev;
+      localStorage.setItem('gd_roster_collapsed', next ? '1' : '0');
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -110,6 +119,10 @@ export default function GameDetailPage() {
     { focus: game.focus_2, goal: game.goal_2, tally: game.tally_2, field: 'tally_2' as const },
     { focus: game.focus_3, goal: game.goal_3, tally: game.tally_3, field: 'tally_3' as const },
   ].filter(f => f.focus);
+
+  const playerCount     = roster.filter(r => r.player_id).length;
+  // Uden spillere er sektionen altid åben — så man kan se "Tilføj spiller"
+  const rosterCollapsed = rosterCollapsedPref && playerCount > 0;
 
   const usWon = game.result_us !== null && game.result_them !== null
     ? game.result_us > game.result_them ? 'win' : game.result_us < game.result_them ? 'loss' : 'draw'
@@ -261,8 +274,18 @@ export default function GameDetailPage() {
         {/* Hold */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <SectionTitle>Hold {roster.filter(r => r.player_id).length > 0 && `(${roster.filter(r => r.player_id).length})`}</SectionTitle>
-            <div className="flex items-center gap-3">
+            {playerCount > 0 ? (
+              <button onClick={toggleRosterCollapsed} className="flex items-center gap-1.5 text-xs font-semibold text-text2 uppercase tracking-wide">
+                Hold ({playerCount})
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                  className="transition-transform" style={{ transform: rosterCollapsed ? 'rotate(-90deg)' : undefined }}>
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+            ) : (
+              <p className="text-xs font-semibold text-text2 uppercase tracking-wide">Hold</p>
+            )}
+            {!rosterCollapsed && <div className="flex items-center gap-3">
               {game.hs_activity_id && (
                 <button
                   onClick={async () => {
@@ -307,8 +330,9 @@ export default function GameDetailPage() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Tilføj spiller
               </button>
-            </div>
+            </div>}
           </div>
+          {!rosterCollapsed && (<>
           {hsSyncMsg && (
             <p className={`text-xs mb-2 ${hsSyncMsg.startsWith('+') || hsSyncMsg === 'Ingen nye' ? 'text-green-dark' : 'text-red'}`}>
               {hsSyncMsg}
@@ -405,6 +429,7 @@ export default function GameDetailPage() {
               })}
             </div>
           )}
+          </>)}
         </section>
 
         {/* Knapper */}
@@ -439,7 +464,7 @@ export default function GameDetailPage() {
           color={color}
           teamName={team?.name ?? null}
           roster={roster}
-          onClose={() => setShowResult(false)}
+          onClose={updated => { setGame(updated); setShowResult(false); }}
           onSaved={updated => { setGame(updated); setShowResult(false); }}
         />
       )}
@@ -488,7 +513,7 @@ function ResultSheet({ game, color, teamName, roster, onClose, onSaved }: {
   color: string;
   teamName: string | null;
   roster: RosterEntry[];
-  onClose: () => void;
+  onClose: (g: Game) => void;
   onSaved: (g: Game) => void;
 }) {
   const [resultUs,    setResultUs]    = useState(game.result_us   !== null ? String(game.result_us)   : '');
@@ -497,8 +522,44 @@ function ResultSheet({ game, color, teamName, roster, onClose, onSaved }: {
   const [wentBad,     setWentBad]     = useState(game.went_bad  ?? '');
   const [motmId,      setMotmId]      = useState<string | null>(game.motm_player_id ?? null);
   const [saving,      setSaving]      = useState(false);
+  const [draftState,  setDraftState]  = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const rosterPlayers = roster.filter(r => r.player_id);
+
+  // Kladde: noter + fidus gemmes løbende (uden resultat), så intet går tabt ved "Tilbage"
+  const draft = { went_well: wentWell.trim() || null, went_bad: wentBad.trim() || null, motm_player_id: motmId || null };
+  const savedDraft = useRef({ went_well: game.went_well ?? null, went_bad: game.went_bad ?? null, motm_player_id: game.motm_player_id ?? null });
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDirty = () => JSON.stringify(draft) !== JSON.stringify(savedDraft.current);
+
+  async function saveDraft() {
+    if (!isDirty()) return true;
+    const snapshot = { ...draft };
+    setDraftState('saving');
+    try {
+      await api.patch(`/games/${game.id}`, snapshot);
+      savedDraft.current = snapshot;
+      setDraftState('saved');
+      return true;
+    } catch {
+      setDraftState('error');
+      return false;
+    }
+  }
+
+  useEffect(() => {
+    if (!isDirty()) return;
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    draftTimer.current = setTimeout(saveDraft, 1000);
+    return () => { if (draftTimer.current) clearTimeout(draftTimer.current); };
+  }, [wentWell, wentBad, motmId]);
+
+  async function goBack() {
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    const ok = await saveDraft();
+    if (!ok) return; // bliv på siden — fejlen vises i headeren
+    onClose({ ...game, ...savedDraft.current });
+  }
 
   async function save() {
     const us   = parseInt(resultUs);
@@ -527,12 +588,14 @@ function ResultSheet({ game, color, teamName, roster, onClose, onSaved }: {
       <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border shrink-0"
         style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
       >
-        <h3 className="text-lg font-bold text-text1">Resultat</h3>
-        <button onClick={onClose} className="text-text3 p-1">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
+        <button onClick={goBack} disabled={draftState === 'saving'} className="flex items-center gap-1 text-text3 text-sm w-20 disabled:opacity-50">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+          Tilbage
         </button>
+        <h3 className="text-lg font-bold text-text1">Resultat</h3>
+        <span className={`text-[11px] w-20 text-right ${draftState === 'error' ? 'text-red' : 'text-text3'}`}>
+          {draftState === 'saving' ? 'Gemmer…' : draftState === 'saved' ? 'Noter gemt' : draftState === 'error' ? 'Kunne ikke gemme' : ''}
+        </span>
       </div>
       {/* Scroll-indhold */}
       <div className="flex-1 overflow-y-auto px-4 py-4" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
