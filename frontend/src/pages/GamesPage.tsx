@@ -14,7 +14,7 @@ export default function GamesPage() {
   const [showImport, setShowImport] = useState(false);
 
   const [teamId,          setTeamId]          = useState(() => sessionStorage.getItem('gf_team')   ?? '');
-  const [season,          setSeason]          = useState(() => sessionStorage.getItem('gf_season') ?? '');
+  const [sortDesc,        setSortDesc]        = useState(() => sessionStorage.getItem('gf_sort') === 'desc');
   const [status,          setStatus]          = useState(() => sessionStorage.getItem('gf_status') ?? 'planned');
   const [search,          setSearch]          = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -32,7 +32,7 @@ export default function GamesPage() {
   const [bulkMsg,    setBulkMsg]    = useState('');
 
   useEffect(() => { sessionStorage.setItem('gf_team',   teamId); }, [teamId]);
-  useEffect(() => { sessionStorage.setItem('gf_season', season); }, [season]);
+  useEffect(() => { sessionStorage.setItem('gf_sort',   sortDesc ? 'desc' : 'asc'); }, [sortDesc]);
   useEffect(() => { sessionStorage.setItem('gf_status', status); }, [status]);
 
   useEffect(() => {
@@ -45,15 +45,13 @@ export default function GamesPage() {
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, [search]);
 
-  function fetchGames(overrides?: { teamId?: string; season?: string; status?: string; search?: string }) {
+  function fetchGames(overrides?: { teamId?: string; status?: string; search?: string }) {
     setLoading(true);
     const t  = overrides?.teamId  ?? teamId;
-    const se = overrides?.season  ?? season;
     const st = overrides?.status  ?? status;
     const sr = overrides?.search  ?? debouncedSearch;
     const params = new URLSearchParams();
     if (t)  params.set('team_id',  t);
-    if (se) params.set('season',   se);
     if (st) params.set('status',   st);
     if (sr) params.set('opponent', sr);
     api.get<Game[]>(`/games?${params}`)
@@ -62,7 +60,7 @@ export default function GamesPage() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { fetchGames(); }, [teamId, season, status, debouncedSearch]);
+  useEffect(() => { fetchGames(); }, [teamId, status, debouncedSearch]);
 
   async function bulkUpdate() {
     setUpdating(true); setUpdateMsg('');
@@ -137,7 +135,8 @@ export default function GamesPage() {
   }
 
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
-  const seasons = [...new Set(games.map(g => g.season))].sort().reverse();
+  // Server returnerer stigende (dato, tid) — vend om ved faldende
+  const sortedGames = sortDesc ? [...games].reverse() : games;
   const currentSeason = (() => { const y = new Date().getFullYear(); return `${y}/${String(y+1).slice(2)}`; })();
   const importTeams = teams.filter(t => t.season === currentSeason);
 
@@ -213,12 +212,15 @@ export default function GamesPage() {
                 {opt.label}
               </ChipButton>
             ))}
-            {seasons.length > 0 && <span className="w-px bg-border shrink-0 mx-1" />}
-            {seasons.map(s => (
-              <ChipButton key={s} active={season === s} onClick={() => setSeason(season === s ? '' : s)}>
-                {s}
-              </ChipButton>
-            ))}
+            <span className="w-px bg-border shrink-0 mx-1" />
+            <button onClick={() => setSortDesc(d => !d)} title="Skift sortering på dato"
+              className="shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-bg2 text-text2 active:bg-border">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                style={{ transform: sortDesc ? 'rotate(180deg)' : undefined }}>
+                <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+              </svg>
+              {sortDesc ? 'Faldende' : 'Stigende'}
+            </button>
           </div>
         </div>
       </div>
@@ -232,7 +234,7 @@ export default function GamesPage() {
         ) : games.length === 0 ? (
           <p className="text-center text-text3 text-sm pt-12">Ingen kampe fundet</p>
         ) : (
-          games.map(game => (
+          sortedGames.map(game => (
             <GameRow
               key={game.id}
               game={game}

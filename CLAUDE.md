@@ -146,8 +146,8 @@ Kræver Worker Secrets: `HOLDSPORT_USER`, `HOLDSPORT_PASS` (Basic auth mod `http
 ### Sider og navigation
 Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
 - `/`          → HomePage — næste kamp pr. hold (m. tilmeldte + trænere), seneste resultater sorteret faldende på dato+tid
-- `/games`     → GamesPage — liste med hold/status/sæson-filter + chip-sortering. Default: Planlagt. Kampe sorteres stigende efter dato+tid
-  - Filtre persisteres i `sessionStorage` (nøgler: `gf_team`, `gf_season`, `gf_status`) — huskes ved navigation frem/tilbage
+- `/games`     → GamesPage — liste med hold/status-filter (intet sæson-filter — kun én sæson). Default: Planlagt. Sorteringsknap (Stigende/Faldende) efter dato+tid, default stigende — server returnerer stigende, faldende vendes client-side
+  - Filtre + sortering persisteres i `sessionStorage` (nøgler: `gf_team`, `gf_status`, `gf_sort`) — huskes ved navigation frem/tilbage
   - FAB (+) nederst højre: åbner mini-menu med "Opret kamp" og "Importer fra Holdsport"
   - Header: sync-ikon (bulk-update fra Holdsport) + "Vælg"-chip
   - Multi-select: "Vælg" aktiverer select-tilstand → action-bar med Arkivér, Holdsport-sync, Slet
@@ -190,7 +190,7 @@ Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
 - Arkivering: PATCH /games/:id med `{ status: 'archived' }` — synlig med 'Arkiveret'-filter i GamesPage
 - Stilling: Ajax-hold markeres med `borderLeft: 4px solid color` + `backgroundColor: color+'12'`. Hold-match: `teamName.includes(ourName) || ourName.includes(teamName)` (case-insensitive)
 - FAB (floating action button): `fixed z-50 w-14 h-14 rounded-full bg-green`, placeret `bottom: calc(5rem + env(safe-area-inset-bottom)), right: 1rem`. Roterer til × når åben. Mini-menu placeres `bottom: calc(5rem + 3.5rem + 0.75rem + env(safe-area-inset-bottom))` (over FAB) for ikke at skjule sig bag knappen.
-- Filter-persistens (GamesPage): `sessionStorage` med nøgler `gf_team`, `gf_season`, `gf_status` — overlever navigation frem/tilbage, men nulstilles ved nyt faneblad
+- Filter-persistens (GamesPage): `sessionStorage` med nøgler `gf_team`, `gf_status`, `gf_sort` — overlever navigation frem/tilbage, men nulstilles ved nyt faneblad
 - Fokuspunkt-autocomplete: `FocusInput`-komponent i GameDetailPage — henter `/games/focuses` ved fokus (én gang, cached), filtrerer on-type, `onMouseDown` for valg (undgår blur-race). UNION-query på focus_1/2/3 i worker.
 - Tre-vejs resultat: brug altid `won = result_us > result_them ? true : result_us < result_them ? false : null` — aldrig `g.result_us > g.result_them` alene (giver `false` ved uafgjort, ikke `null`)
 - Uafgjort farves `text-text3` (mørkegrå), ikke `text-red`
