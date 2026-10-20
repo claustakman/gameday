@@ -114,7 +114,7 @@ Kræver Worker Secrets: `HOLDSPORT_USER`, `HOLDSPORT_PASS` (Basic auth mod `http
   - `user_id`-feltet (ikke `id`) mappes mod `hs_user_id` i DB
   - Tilføjer nye + fjerner frameldte (kun dem med `hs_user_id` — manuelle røres ikke)
   - Returnerer `{ added, removed, total }`
-- `POST /holdsport/bulk-update-games` — opdater tid, sted og tilmeldte for alle planlagte kampe med `hs_activity_id`
+- `POST /holdsport/bulk-update-games` — opdater dato, tid, sted og tilmeldte for alle planlagte kampe med `hs_activity_id` (kun manuelt via sync-ikon på GamesPage — ingen cron)
   - Returnerer `{ updated, playersAdded, playersRemoved, total }`
 
 #### Holdsport API-noter
@@ -202,7 +202,7 @@ Tab-bar: **Hjem / Kampe / Stats** + hamburger **Mere** (slide-up menu)
 - SettingsPage: `hsTeamId`-felt (default "625040") med "(slå op)"-knap der lister Holdsport-hold
 - "Importer kampe" → åbner `HsImportGamesModal` (2-trins: datovalg → aktivitetsliste m. tag-felt per kamp)
 - "Synkronisér spillere" → `POST /holdsport/sync-players`
-- GamesPage: "Opdater"-knap → `POST /holdsport/bulk-update-games` (tid, sted, tilmeldte for alle planlagte)
+- GamesPage: "Opdater"-knap → `POST /holdsport/bulk-update-games` (dato, tid, sted, tilmeldte for alle planlagte)
 - GamesPage: "Importer"-knap → `HsImportGamesModal` (hardcoded hsTeamId="625040")
 - GameDetailPage: "Holdsport"-knap i Hold-sektion (kun hvis `hs_activity_id` er sat) → `POST /holdsport/sync-game-players`
 

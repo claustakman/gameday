@@ -583,7 +583,7 @@ holdsportRoutes.post('/sync-game-players', async (c) => {
 });
 
 // ── POST /holdsport/bulk-update-games ──────────────────────────────────────
-// For all games with hs_activity_id in the org: update time + location,
+// For all games with hs_activity_id in the org: update date + time + location,
 // and sync attending players/coaches. Returns summary.
 
 holdsportRoutes.post('/bulk-update-games', async (c) => {
@@ -608,12 +608,18 @@ holdsportRoutes.post('/bulk-update-games', async (c) => {
       const activity = (Array.isArray(data) ? data[0] : data) as HsActivityFull;
       if (!activity) continue;
 
-      // Update time + location
-      const { time } = parseHsTime(activity.starttime);
+      // Update date + time + location (date kun hvis Holdsport giver en gyldig dato)
+      const { date, time } = parseHsTime(activity.starttime);
       const location = activity.place || null;
-      await c.env.DB.prepare(
-        'UPDATE games SET time = ?, location = ? WHERE id = ?'
-      ).bind(time, location, game.id).run();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        await c.env.DB.prepare(
+          'UPDATE games SET date = ?, time = ?, location = ? WHERE id = ?'
+        ).bind(date, time, location, game.id).run();
+      } else {
+        await c.env.DB.prepare(
+          'UPDATE games SET time = ?, location = ? WHERE id = ?'
+        ).bind(time, location, game.id).run();
+      }
 
       // Sync attending players
       const attendingPlayers = (activity.activities_users ?? []).filter(u => u.status_code === 1);
