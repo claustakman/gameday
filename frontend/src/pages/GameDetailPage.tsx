@@ -692,17 +692,21 @@ function ResultSheet({ game, color, teamName, roster, onClose, onSaved }: {
       <p className="text-xs font-medium text-text2 mb-1.5">Det gik godt (valgfri)</p>
       <textarea
         placeholder="Hvad fungerede?"
-        value={wentWell} onChange={e => setWentWell(e.target.value)}
-        rows={4}
-        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg resize-none mb-3"
+        value={wentWell}
+        onChange={e => setWentWell(e.target.value)}
+        onInput={e => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }}
+        rows={3}
+        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg resize-none mb-3 overflow-hidden"
       />
 
       <p className="text-xs font-medium text-text2 mb-1.5">Kan gøres bedre (valgfri)</p>
       <textarea
         placeholder="Hvad skal vi arbejde på?"
-        value={wentBad} onChange={e => setWentBad(e.target.value)}
-        rows={4}
-        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg resize-none mb-4"
+        value={wentBad}
+        onChange={e => setWentBad(e.target.value)}
+        onInput={e => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }}
+        rows={3}
+        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg resize-none mb-4 overflow-hidden"
       />
 
       <button
@@ -1339,8 +1343,9 @@ function NotesSection({ game, onSaved }: { game: Game; onSaved: (g: Game) => voi
         placeholder="Tilføj noter til kampen…"
         value={notes}
         onChange={e => { setNotes(e.target.value); setDirty(true); }}
-        rows={5}
-        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg resize-none"
+        onInput={e => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }}
+        rows={3}
+        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text1 focus:outline-none focus:ring-2 focus:ring-green bg-bg resize-none overflow-hidden"
       />
       {dirty && (
         <button
