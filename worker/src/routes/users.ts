@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { Env, JWTPayload } from '../types';
 import { uuid, now } from '../db/utils';
+import { hashPassword } from '../lib/password';
 
 export const userRoutes = new Hono<{ Bindings: Env; Variables: { user: JWTPayload } }>();
 
@@ -102,7 +103,7 @@ userRoutes.patch('/me', async (c) => {
 
   if (password) {
     if (password.length < 6) return c.json({ error: 'Password too short (min 6)' }, 400);
-    const hash = await sha256(password);
+    const hash = await hashPassword(password);
     updates.push('password_hash = ?');
     values.push(hash);
   }
@@ -116,8 +117,3 @@ userRoutes.patch('/me', async (c) => {
   return c.json({ ok: true });
 });
 
-// ── helpers ───────────────────────────────────────────────────────────
-async function sha256(text: string): Promise<string> {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-}

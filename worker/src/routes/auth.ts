@@ -6,6 +6,7 @@ import { Env, JWTPayload } from '../types';
 import { signJWT } from '../db/jwt';
 import { now } from '../db/utils';
 import { rpConfig, saveChallenge, consumeChallenge } from '../lib/webauthn';
+import { hashPassword, verifyPassword } from '../lib/password';
 
 export const authRoutes = new Hono<{ Bindings: Env; Variables: { user: JWTPayload } }>();
 
@@ -26,7 +27,7 @@ authRoutes.post('/accept-invite', async (c) => {
   if (row.used) return c.json({ error: 'Invite link already used' }, 410);
   if (new Date(row.expires_at) < new Date()) return c.json({ error: 'Invite link expired' }, 410);
 
-  const hash = await sha256(password);
+  const hash = await hashPassword(password);
   await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(hash, row.user_id).run();
   await c.env.DB.prepare('UPDATE invite_tokens SET used = 1 WHERE token = ?').bind(token).run();
 
@@ -48,13 +49,15 @@ authRoutes.post('/login', async (c) => {
 
   if (!user) return c.json({ error: 'Invalid credentials' }, 401);
 
-  // Compare bcrypt-like hash — in production use a proper hasher via crypto.subtle
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+  const ok = await verifyPassword(password, user.password_hash);
+  if (!ok) return c.json({ error: 'Invalid credentials' }, 401);
 
-  if (hashHex !== user.password_hash) return c.json({ error: 'Invalid credentials' }, 401);
+  // Upgrade legacy SHA-256 hash to PBKDF2 on successful login
+  if (!user.password_hash.startsWith('pbkdf2:')) {
+    const upgraded = await hashPassword(password);
+    await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+      .bind(upgraded, user.id).run();
+  }
 
   const token = await signJWT(
     { sub: user.id, org: user.org_id, role: user.role as 'admin' | 'coach' },
@@ -169,7 +172,3 @@ authRoutes.get('/invite-info/:token', async (c) => {
   return c.json({ name: row.name, email: row.email });
 });
 
-async function sha256(text: string): Promise<string> {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
