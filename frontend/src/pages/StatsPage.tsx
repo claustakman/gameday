@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import type { Game, Team, PlayerStat, CoachStat } from '../lib/types';
 
@@ -11,13 +11,18 @@ interface StatsResponse {
 export default function StatsPage() {
   const [stats,   setStats]   = useState<StatsResponse | null>(null);
   const [teams,   setTeams]   = useState<Team[]>([]);
+  const [allTags, setAllTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [teamId, setTeamId] = useState('');
   const [season, setSeason] = useState('');
+  const [tag,    setTag]    = useState('');
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.get<Team[]>('/teams').then(setTeams).catch(() => {});
+    api.get<string[]>('/games/tags').then(setAllTags).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -25,15 +30,27 @@ export default function StatsPage() {
     const params = new URLSearchParams();
     if (teamId) params.set('team_id', teamId);
     if (season) params.set('season', season);
+    if (tag)    params.set('tag', tag);
     api.get<StatsResponse>(`/stats?${params}`)
       .then(s => { setStats(s); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [teamId, season]);
+  }, [teamId, season, tag]);
 
   const games = stats?.games ?? [];
   const playerStats = stats?.player_stats ?? [];
   const coachStats  = stats?.coach_stats  ?? [];
+
+  // Close tag dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) {
+        setTagDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const allSeasons = [...new Set(games.map(g => g.season))].sort().reverse();
 
@@ -104,6 +121,48 @@ export default function StatsPage() {
               </ChipButton>
             ))}
           </div>
+        )}
+        {allTags.length > 0 && (
+          allTags.length <= 4 ? (
+            <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar">
+              <ChipButton active={tag === ''} onClick={() => setTag('')}>Alle typer</ChipButton>
+              {allTags.map(t => (
+                <ChipButton key={t} active={tag === t} onClick={() => setTag(tag === t ? '' : t)}>
+                  {t}
+                </ChipButton>
+              ))}
+            </div>
+          ) : (
+            <div className="relative" ref={tagDropdownRef}>
+              <button
+                onClick={() => setTagDropdownOpen(o => !o)}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-colors whitespace-nowrap bg-bg2 text-text2 border-transparent"
+                style={tag ? { backgroundColor: '#1D9E7522', borderColor: '#1D9E75', color: '#1D9E75' } : {}}
+              >
+                {tag || 'Alle typer'}
+                <span className="text-[10px] opacity-60">{tagDropdownOpen ? '▲' : '▼'}</span>
+              </button>
+              {tagDropdownOpen && (
+                <div className="absolute left-0 top-full mt-1 z-30 bg-bg border border-border rounded-xl shadow-lg min-w-[160px] py-1">
+                  <button
+                    className={`w-full text-left px-4 py-2 text-sm ${tag === '' ? 'font-semibold text-green' : 'text-text1'}`}
+                    onClick={() => { setTag(''); setTagDropdownOpen(false); }}
+                  >
+                    Alle typer
+                  </button>
+                  {allTags.map(t => (
+                    <button
+                      key={t}
+                      className={`w-full text-left px-4 py-2 text-sm ${tag === t ? 'font-semibold text-green' : 'text-text1'}`}
+                      onClick={() => { setTag(tag === t ? '' : t); setTagDropdownOpen(false); }}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
         )}
       </div>
 

@@ -5,7 +5,7 @@ export const statsRoutes = new Hono<{ Bindings: Env; Variables: { user: JWTPaylo
 
 statsRoutes.get('/', async (c) => {
   const user = c.get('user');
-  const { season, team_id } = c.req.query();
+  const { season, team_id, tag } = c.req.query();
 
   let gameSql = `
     SELECT g.* FROM games g
@@ -16,6 +16,7 @@ statsRoutes.get('/', async (c) => {
 
   if (team_id) { gameSql += ' AND g.team_id = ?'; params.push(team_id); }
   if (season)  { gameSql += ' AND g.season = ?';  params.push(season); }
+  if (tag)     { gameSql += ' AND g.tag = ?';     params.push(tag); }
 
   const games = await c.env.DB.prepare(gameSql).bind(...params).all();
 
@@ -32,12 +33,14 @@ statsRoutes.get('/', async (c) => {
     WHERE t.org_id = ? AND g.status = 'done'
     ${team_id ? 'AND g.team_id = ?' : ''}
     ${season  ? 'AND g.season = ?'  : ''}
+    ${tag     ? 'AND g.tag = ?'     : ''}
     GROUP BY p.id
     ORDER BY appearances DESC
   `;
   const playerParams: unknown[] = [user.org];
   if (team_id) playerParams.push(team_id);
   if (season)  playerParams.push(season);
+  if (tag)     playerParams.push(tag);
 
   const playerStats = await c.env.DB.prepare(playerStatsSql).bind(...playerParams).all();
 
@@ -52,12 +55,14 @@ statsRoutes.get('/', async (c) => {
     WHERE t.org_id = ? AND g.status = 'done'
     ${team_id ? 'AND g.team_id = ?' : ''}
     ${season  ? 'AND g.season = ?'  : ''}
+    ${tag     ? 'AND g.tag = ?'     : ''}
     GROUP BY co.id
     ORDER BY appearances DESC
   `;
   const coachParams: unknown[] = [user.org];
   if (team_id) coachParams.push(team_id);
   if (season)  coachParams.push(season);
+  if (tag)     coachParams.push(tag);
 
   const coachStats = await c.env.DB.prepare(coachStatsSql).bind(...coachParams).all();
 
